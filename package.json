@@ -1,0 +1,21 @@
+{
+  "name": "roster-calendar-prototype-1",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "test:production": "node tests/offline.check.mjs"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vite": "^7.1.0",
+    "@types/node": "^22.15.0"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}
