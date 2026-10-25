@@ -14,3 +14,5 @@ test('grid evidence associates stacked cards with one column without assigning a
 
 test('ambiguous printed times prevent inferred fallback',()=>{assert.equal(proposal('A','light','A 07:00 - 07:00').range,undefined);assert.equal(proposal('P','dark','P 13:30').range,undefined);});
 test('grid detection finds regular column borders and refuses an absent grid',()=>{const w=300,h=240,d=new Uint8ClampedArray(w*h*4).fill(255);const put=(x,y,rgb)=>d.set([...rgb,255],(y*w+x)*4);for(let i=0;i<8;i++)for(let y=30;y<=220;y++)put(20+i*35,y,[225,225,225]);for(const y of [50,120,200])for(let x=20;x<=265;x++)put(x,y,[225,225,225]);for(let y=65;y<95;y++)for(let x=25;x<50;x++)put(x,y,[30,190,30]);const cards=detectCards(d,w,h),g=findGrid(d,w,h,cards);assert(g);assert.equal(g.columns.length,8);assert.equal(dayCell(cards[0],g).column,0);assert.equal(findGrid(new Uint8ClampedArray(w*h*4).fill(255),w,h,cards),undefined);});
+
+test('repeated identical readings are one range; conflicting passes stay ambiguous',()=>{assert.equal(explicitRange('07:00 - 15:30\\nTime line: 07:00 - 15:30').end,'15:30');assert.equal(explicitRange('07:00 - 18:30\\nTime line: 07:00 - 19:30'),undefined);});

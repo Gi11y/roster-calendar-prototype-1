@@ -37,14 +37,14 @@ function render(){list.replaceChildren();for(const result of results){
  const thumb=crop(card.x-2,card.y-2,card.width+4,card.height+4,'original',2);thumb.className='card-thumb';section.append(thumb);
  const evidence=document.createElement('p');evidence.className='small';const cell=dayCell(card,grid);evidence.textContent='Original RGB '+card.rgb.join(', ')+'; hue '+card.hue+'°. '+(cell?'Grid column '+(cell.column+1)+(result.day?'; day OCR '+result.day+' (unverified)':' ; day unread/unconfirmed'):'Date grid unconfirmed')+'. No month/year assigned.';section.append(evidence);
  const colourLabel=document.createElement('label');colourLabel.textContent='Colour category ';const colour=document.createElement('select');colour.setAttribute('aria-label','Colour for card '+card.id);
- for(const [value,name] of [['uncertain','Uncertain - review'],['light','Lighter green: 12 hours (A/P)'],['dark','Darker green: 8 hours (A/P)']]){const option=document.createElement('option');option.value=value;option.textContent=name;colour.append(option);}colour.value=card.colour;colourLabel.append(colour);section.append(colourLabel);
+ for(const [value,name] of [['uncertain','Uncertain - review'],['light','Lighter green: 12 hours (A/P)'],['dark','Darker green: 8 hours (A/P)']]){const option=document.createElement('option');option.value=value;option.textContent=name;colour.append(option);}colour.value=card.colour;colour.disabled=busy;colourLabel.append(colour);section.append(colourLabel);
  const labelLabel=document.createElement('label');labelLabel.textContent='Shift label ';const label=document.createElement('select');label.setAttribute('aria-label','Shift label for card '+card.id);
- for(const value of ['', 'A','P','N','N10']){const option=document.createElement('option');option.value=value;option.textContent=value||'Unread / uncertain';label.append(option);}label.value=result.label||'';labelLabel.append(label);section.append(labelLabel);
+ for(const value of ['', 'A','P','N','N10']){const option=document.createElement('option');option.value=value;option.textContent=value||'Unread / uncertain';label.append(option);}label.value=result.label||'';label.disabled=busy;labelLabel.append(label);section.append(labelLabel);
  const note=document.createElement('p');if(result.confidence!==undefined)note.textContent='Label OCR confidence: '+result.confidence.toFixed(1)+' (not a guarantee).';section.append(note);
  const proposed=document.createElement('p');proposed.className='proposal';const update=()=>{card.colour=colour.value as Colour;result.label=label.value||undefined;const p=proposal(result.label,card.colour,result.text);proposed.textContent=p.range?p.range.start+' to '+p.range.end+(p.range.nextDay?' (+1 day)':'')+' - '+p.basis+(p.warning?'. '+p.warning:''):p.basis+': '+p.warning;};colour.addEventListener('change',update);label.addEventListener('change',update);update();section.append(proposed);
  const raw=document.createElement('details'),summary=document.createElement('summary');summary.textContent='OCR evidence / errors';raw.append(summary);const text=document.createElement('pre');text.textContent=result.error||result.text||'Not read yet.';raw.append(text);section.append(raw);list.append(section);
  }}
-read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;const job=++generation;busy=true;controls();progress.value=0;let current:Worker|undefined;
+read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;const job=++generation;busy=true;controls();progress.value=0;status.textContent='Loading the on-device card reader...';let current:Worker|undefined;
  try{const lib=await engine();if(job!==generation)return;current=await lib.createWorker('eng',1,{workerPath:root+'worker.min.js',corePath:root,langPath:root.replace(/\/$/,''),workerBlobURL:false,cacheMethod:'none',gzip:true});if(job!==generation){await current.terminate();return;}worker=current;
  const active=results.slice(0,40);
  for(let index=0;index<active.length;index++){if(job!==generation)return;const result=active[index],c=result.card;status.textContent='Reading card '+(index+1)+' of '+active.length+'...';progress.value=index/active.length;
@@ -55,13 +55,19 @@ read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;c
  await current.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:'',preserve_interword_spaces:'1'});
  const full=await current.recognize(crop(c.x-2,c.y-2,c.width+4,c.height+4),{},{text:true,tsv:true});if(job!==generation)return;result.text=full.data.text;
  if(!result.label){const candidate=labelFromText(full.data.text);const words=parseTsv(full.data.tsv||'');if(candidate&&words[0]?.confidence>=65){result.label=candidate;result.confidence=words[0].confidence;}}
+ if(c.height>27){
+ await current.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'0123456789:-. '});
+ const timeLine=await current.recognize(crop(c.x-2,c.y+17,c.width+4,Math.min(22,c.height-17),'original',4),{},{text:true,tsv:true});
+ if(job!==generation)return;
+ if(/[0-9][:.][0-9]/.test(timeLine.data.text))result.text+='\nTime-line OCR (compare both readings):\n'+timeLine.data.text;
+ }
  const cell=dayCell(c,grid);if(cell?.top!==undefined){await current.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'0123456789'});const day=await current.recognize(crop(grid!.columns[cell.column]+2,cell.top+2,Math.min(35,c.width*.45),Math.max(8,Math.min(21,c.y-cell.top-3))),{},{text:true,tsv:true});if(job!==generation)return;const digits=day.data.text.trim();if(/^(?:[1-9]|[12]\d|3[01])$/.test(digits)&&parseTsv(day.data.tsv||'').some(w=>w.confidence>=60))result.day=digits;}
  }catch(e){result.error=String(e);}render();
  }
  if(grid&&job===generation){await current.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:''});const top=grid.rows[0]??Math.min(...cards.map(c=>c.y));const heading=await current.recognize(crop(grid.columns[0],Math.max(0,top-100),grid.columns[7]-grid.columns[0],Math.min(95,top)),{},{text:true,tsv:false});if(job===generation)header.value=heading.data.text;}
  if(job===generation){progress.value=1;status.textContent='Finished reading '+active.length+' card(s). Review colour, label, printed times and date evidence. No calendar events created.'+(results.length>40?' Only the first 40 cards were read to limit memory/time.':'');}
  }catch(e){if(job===generation)status.textContent='Card OCR failed: '+String(e);}
- finally{if(current)await current.terminate().catch(()=>{});if(job===generation){worker=undefined;busy=false;controls();}}
+ finally{if(current)await current.terminate().catch(()=>{});if(job===generation){worker=undefined;busy=false;controls();render();}}
 });
 async function offline(){const label=el('card-offline');if(!('serviceWorker'in navigator)||!import.meta.env.PROD){label.textContent='Offline cache requires the production deployment.';return;}
  try{await navigator.serviceWorker.register(import.meta.env.BASE_URL+'sw.js',{scope:import.meta.env.BASE_URL});await navigator.serviceWorker.ready;const info=await(await fetch(root+'assets.json')).json() as {files:string[]};const cached=await Promise.all(info.files.map(f=>caches.match(root+f)));

@@ -51,7 +51,7 @@ function clock(h:number,m:number):string{return String(h).padStart(2,'0')+':'+St
 export function explicitRange(text:string):TimeRange|undefined{
  const s=text.replace(/[–—−]/g,'-');const pattern=/(?:^|[^0-9])([0-2]?\d)[:.]([0-5]\d)\s*(?:-|to)\s*([0-2]?\d)[:.]([0-5]\d)(?!\d)/gi;let match:RegExpExecArray|null;const found:TimeRange[]=[];
  while((match=pattern.exec(s))){const a=Number(match[1])*60+Number(match[2]),b=Number(match[3])*60+Number(match[4]);if(Number(match[1])>23||Number(match[3])>23||a===b)continue;const duration=(b-a+1440)%1440;if(duration>16*60)continue;found.push({start:clock(Number(match[1]),Number(match[2])),end:clock(Number(match[3]),Number(match[4])),nextDay:b<a,minutes:duration});}
- return found.length===1?found[0]:undefined;
+ const unique=[...new Map(found.map(r=>[r.start+'|'+r.end,r])).values()];return unique.length===1?unique[0]:undefined;
 }
 export function proposal(label:string|undefined,colour:Colour,text:string):{range?:TimeRange;basis:string;warning?:string}{
  const printed=explicitRange(text);if(printed)return{range:printed,basis:'Printed time range - verify against image'};
