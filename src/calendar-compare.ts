@@ -1,3 +1,4 @@
+import type {CalendarProgress} from './calendar-progress';
 import {DateTime} from 'luxon';
 import {validDate,addDays} from './date-review.ts';
 import {OWNER_MARKER,type ApprovedEvent} from './approved-events.ts';
@@ -43,24 +44,28 @@ export function planComparison(approved:ApprovedEvent[],remote:RemoteEvent[],cov
  }
  return output;
 }
-export async function compareCalendar(api:CalendarReadApi,calendarId:string,token:string,approved:ApprovedEvent[],coverage?:Coverage):Promise<Comparison[]>{
+export async function compareCalendar(api:CalendarReadApi,calendarId:string,token:string,approved:ApprovedEvent[],coverage?:Coverage,onProgress:(progress:CalendarProgress)=>void=()=>{}):Promise<Comparison[]>{
  if(!approved.length)throw Error('Prepare reviewed events first.');
  const byId=new Map<string,RemoteEvent>(),path='/calendars/'+encodeURIComponent(calendarId)+'/events';
  if(coverage){
-  const bounds=coverageBounds(coverage),seen=new Set<string>();let page:string|undefined;
+  const bounds=coverageBounds(coverage),seen=new Set<string>();let page:string|undefined,pages=0;
+  onProgress({phase:'listing',completed:0});
   do{
    const query=new URLSearchParams({...bounds,singleEvents:'true',showDeleted:'false',maxResults:'2500',privateExtendedProperty:'rosterImporter='+OWNER_MARKER});
    if(page)query.set('pageToken',page);
    const response=await api<{items?:RemoteEvent[];nextPageToken?:string}>(path+'?'+query,token);
    for(const event of response.items||[])byId.set(event.id,event);
+   onProgress({phase:'listing',completed:++pages});
    page=response.nextPageToken;
    if(page){if(seen.has(page)||seen.size>=100)throw Error('Calendar pagination did not finish safely. No comparison is available.');seen.add(page);}
   }while(page);
  }
+ let checked=0;onProgress({phase:'checking',completed:0,total:approved.length});
  // Direct lookup finds existing IDs even if the event was moved outside the date window.
  for(const event of approved){
   try{const found=await api<RemoteEvent>(path+'/'+encodeURIComponent(event.id),token);if(found.id!==event.id)throw Error('Calendar returned a mismatched event ID.');byId.set(found.id,found);}
   catch(error){if(isStatus(error,410))byId.set(event.id,{id:event.id,status:'cancelled'});else if(!isStatus(error,404))throw error;}
+  onProgress({phase:'checking',completed:++checked,total:approved.length});
  }
  return planComparison(approved,[...byId.values()],coverage);
 }

@@ -1,3 +1,4 @@
+import type {CalendarProgress} from './calendar-progress';
 import {OWNER_MARKER,stableEventId,type ApprovedEvent} from './approved-events.ts';
 import {isStatus,planComparison,coverageBounds,type Coverage,type Comparison,type RemoteEvent} from './calendar-compare.ts';
 import {verifyRosterCalendar,type CalendarReadApi} from './calendar-selection.ts';
@@ -32,7 +33,7 @@ async function validateAfter(event:ApprovedEvent,id:string){
 function fields(after:ApprovedEvent,before?:RemoteEvent){
  return{summary:after.summary,description:after.description,start:after.start,end:after.end,reminders:{useDefault:false,overrides:after.reminders.overrides||[]},extendedProperties:{private:{...before?.extendedProperties?.private,...after.extendedProperties.private}}};
 }
-export async function applyCalendarChanges(api:CalendarReadApi,calendarId:string,token:string,reviewed:Comparison[],assertCurrent:()=>void=()=>{},progress:(done:number,total:number)=>void=()=>{},options:ApplyOptions={}):Promise<ApplyResult>{
+export async function applyCalendarChanges(api:CalendarReadApi,calendarId:string,token:string,reviewed:Comparison[],assertCurrent:()=>void=()=>{},progress:(done:number,total:number)=>void=()=>{},options:ApplyOptions={},onProgress:(progress:CalendarProgress)=>void=()=>{}):Promise<ApplyResult>{
  options=structuredClone(options);
  const changes=structuredClone(reviewed),eligibility=applyEligibility(changes,options),items:ApplyItem[]=changes.filter(c=>c.kind==='unchanged').map(c=>({id:c.id,kind:'unchanged',detail:'No change requested for this shift.'}));
  if(eligibility.reason)throw Error(eligibility.reason);
@@ -42,6 +43,7 @@ export async function applyCalendarChanges(api:CalendarReadApi,calendarId:string
  if(options.coverage)planComparison(desired,[],options.coverage);
  const operations=changes.filter(c=>['new','changed','restore','removed'].includes(c.kind)).sort((a,b)=>Number(a.kind==='removed')-Number(b.kind==='removed')),path='/calendars/'+encodeURIComponent(calendarId)+'/events';
  // Revalidate the destination and every target before making the first write.
+ onProgress({phase:'validating',completed:0,total:operations.length});
  assertCurrent();await verifyRosterCalendar(api,calendarId,token);assertCurrent();
  for(const c of changes.filter(c=>c.after)){await validateAfter(c.after!,c.id);assertCurrent();}
  const fetchEvent=async(id:string)=>{assertCurrent();try{const event=await api<RemoteEvent>(path+'/'+id,token);assertCurrent();if(event.id!==id)throw Error('Google returned a different event ID.');return event;}catch(error){if(isStatus(error,404))return undefined;if(isStatus(error,410))return{id,status:'cancelled'};throw error;}};
@@ -71,7 +73,9 @@ export async function applyCalendarChanges(api:CalendarReadApi,calendarId:string
   const p=event.extendedProperties?.private,ordinal=Number(p?.rosterOrdinal);
   if(!p||p.rosterImporter!==OWNER_MARKER||!validDate(p.rosterDate)||!['A','P','N','N10'].includes(p.rosterType)||!Number.isSafeInteger(ordinal)||ordinal<0||String(ordinal)!==p.rosterOrdinal||await stableEventId(p.rosterDate,p.rosterType,ordinal)!==event.id)throw Error('Removal target has an invalid importer identity. No removal was made.');
  }
- for(const change of operations){const fresh=await fetchEvent(change.id);if(change.kind==='removed'){if(!change.before)throw Error('Removal has no reviewed event.');await checkRemovalIdentity(change.before);if(fresh&&fresh.status!=='cancelled')await checkRemovalIdentity(fresh);}check(change,fresh);assertCurrent();}
+ let validated=0;
+ for(const change of operations){const fresh=await fetchEvent(change.id);if(change.kind==='removed'){if(!change.before)throw Error('Removal has no reviewed event.');await checkRemovalIdentity(change.before);if(fresh&&fresh.status!=='cancelled')await checkRemovalIdentity(fresh);}check(change,fresh);assertCurrent();onProgress({phase:'validating',completed:++validated,total:operations.length});}
+ onProgress({phase:'saving',completed:0,total:operations.length});
  for(let index=0;index<operations.length;index++){
   const change=operations[index];let attempted=false;
   try{
@@ -102,6 +106,7 @@ export async function applyCalendarChanges(api:CalendarReadApi,calendarId:string
     if(!items.some(x=>x.id===change.id))items.push({id:change.id,kind:change.kind==='new'?'created':change.kind==='removed'?'removed':change.kind==='restore'?'restored':'updated',detail:change.kind==='new'?'Added to Roster.':change.kind==='removed'?'Removed from the confirmed roster period.':change.kind==='restore'?'Restored using the same stable ID.':'Updated in Roster.'});
    }
    progress(index+1,operations.length);
+   onProgress({phase:'saving',completed:index+1,total:operations.length});
   }catch(error){
    // A lost response can still mean a write succeeded. A fresh comparison resolves it safely.
    const previous=items.findIndex(x=>x.id===change.id);if(previous>=0)items.splice(previous,1);

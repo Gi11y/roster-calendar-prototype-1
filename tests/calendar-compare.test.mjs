@@ -52,3 +52,14 @@ test('410 direct lookup is a recovery candidate rather than a new random ID',asy
  const e=await desired();const plan=await compareCalendar(async()=>{throw{status:410};},'id','token',[e]);
  assert.equal(plan[0].kind,'restore');assert.equal(plan[0].id,e.id);
 });
+
+test('comparison progress reports unknown page counts then actual checked shift counts',async()=>{
+ const e=await desired(),updates=[];
+ const api=async(path)=>path.includes('?')?(path.includes('pageToken=next')?{items:[]}:{items:[],nextPageToken:'next'}):live(e);
+ await compareCalendar(api,'calendar','memory',[e],coverage,p=>updates.push({...p}));
+ assert.deepEqual(updates,[{phase:'listing',completed:0},{phase:'listing',completed:1},{phase:'listing',completed:2},{phase:'checking',completed:0,total:1},{phase:'checking',completed:1,total:1}]);
+});
+test('a failed check never announces the remaining shifts as completed',async()=>{
+ const e=await desired(),updates=[];await assert.rejects(compareCalendar(async()=>{throw{status:403};},'calendar','memory',[e],undefined,p=>updates.push(p)));
+ assert.deepEqual(updates,[{phase:'checking',completed:0,total:1}]);
+});

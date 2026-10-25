@@ -142,3 +142,15 @@ test('recovery without passed proof, for another calendar, stale versions or con
   const s=server([{...tombstone,...patch}]);await assert.rejects(applyCalendarChanges(s.api,calendar,token,plan,undefined,undefined,recovery('patch')));assert.equal(s.writes().length,0);
  }
 });
+
+test('save progress covers preflight and advances only after saved fields are verified',async()=>{
+ const events=await desired(2),s=server(),updates=[];
+ s.setHook(({method})=>{if(method==='POST'){const last=updates.at(-1);assert.equal(last.phase,'saving');assert.equal(last.completed,s.writes().length-1);}});
+ const result=await applyCalendarChanges(s.api,calendar,token,planComparison(events,[]),undefined,undefined,{},p=>updates.push({...p}));
+ assert.equal(result.complete,true);assert.deepEqual(updates,[{phase:'validating',completed:0,total:2},{phase:'validating',completed:1,total:2},{phase:'validating',completed:2,total:2},{phase:'saving',completed:0,total:2},{phase:'saving',completed:1,total:2},{phase:'saving',completed:2,total:2}]);
+});
+test('failed saves retain truthful partial counts rather than reporting 100 percent',async()=>{
+ const events=await desired(2),s=server(),updates=[];let posts=0;s.setHook(({method})=>{if(method==='POST'&&++posts===2)throw Error('Lost response');});
+ const result=await applyCalendarChanges(s.api,calendar,token,planComparison(events,[]),undefined,undefined,{},p=>updates.push({...p}));
+ assert.equal(result.complete,false);assert.equal(updates.at(-1).phase,'saving');assert.equal(updates.at(-1).completed,1);assert.equal(updates.at(-1).total,2);
+});

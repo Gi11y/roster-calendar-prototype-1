@@ -1,3 +1,11 @@
+## v0.21 — visible checking and saving progress
+
+Calendar preview now shows a progress bar during Check calendar and Apply. It reports actual completed shift checks, preflight checks, and saved/verified operations. Paginated calendar reads use an indeterminate bar because the page total is unknown. Elapsed time updates every second; after 15 seconds a longer-wait message asks the user to keep the page open and avoid tapping again. No simulated percentage or time estimate.
+
+The bar appears before network work and is stopped on completion, failure, disconnect/expiry and page exit. Saving has two phases: checking all targets before writing, then completing the sequential changes. Counts advance only after an operation is verified or safely skipped. Errors preserve the existing partial-result and recheck workflow; no retries, new mutations or cancellation logic were added. Existing controls stay disabled while busy. Reduced-motion preferences disable the waiting animation.
+
+Progress tests cover paginated/known counts, failures without false completion, preflight/save ordering, verified completions, elapsed feedback, cleanup and legacy pages. OCR, crop, shift defaults, Google scopes and reconciliation safeguards are unchanged. Live Google timing and phone presentation still require account/device checks; visual progress examples use synthetic states and make no Google calls.
+
 ## v0.20 — automatic roster cropping
 
 Choose screenshot now proposes a crop around the full seven-column calendar and its date heading. A short preview lets users Read roster, adjust four crop edges, reset the suggestion, or use the full image. Review your shifts includes Adjust screenshot crop, which clears approvals and rereads the new selection. No new account/setup step, external image service, dependency, or Google scope.

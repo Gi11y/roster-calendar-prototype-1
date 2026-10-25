@@ -1,3 +1,4 @@
+import {mountCalendarProgress} from './calendar-progress';
 import {firstTimeCalendarState} from './calendar-create';
 import './style.css';import './cards-theme.css';
 import {comparisonCounts,renderCalendarChanges,applyActionState}from'./calendar-presentation';
@@ -27,4 +28,16 @@ if(new URLSearchParams(location.search).get('view')==='setup'){
  el('calendar-approved-count').textContent='Your confirmed shifts';el('review-destination').hidden=true;
  el('review-create-calendar').hidden=false;el('open-calendar-settings').hidden=false;el('open-calendar-settings').textContent='Use an existing calendar';
  el('calendar-review-status').hidden=false;el('calendar-review-status').textContent='Design preview only. These controls do not contact Google.';
+}
+
+const progressExample=new URLSearchParams(location.search).get('view');
+if(progressExample==='checking'||progressExample==='saving'){
+ const checking=progressExample==='checking',root=el('calendar-operation'),view=mountCalendarProgress(root);
+ root.hidden=false;view.update({phase:checking?'checking':'saving',completed:checking?6:2,total:checking?14:5});
+ el('calendar-step-title').textContent=checking?'Checking your calendar':'Saving your changes';
+ el('calendar-step-copy').textContent='Synthetic progress example. No requests are running.';
+ root.querySelector<HTMLElement>('[data-progress-hint]')!.textContent='Keep this page open.';
+ root.querySelector<HTMLElement>('[data-progress-elapsed]')!.textContent='8s elapsed (example)';
+ el('comparison-results').hidden=true;el('calendar-main-actions').hidden=true;
+ el('calendar-approved-count').textContent=checking?'14 confirmed shifts':'6 confirmed shifts';
 }

@@ -78,3 +78,13 @@
 .cards-app #crop-adjustments label{display:flex;justify-content:space-between;font-size:14px;margin:14px 0 4px}
 .cards-app #crop-adjustments input[type=range]{display:block;width:100%;min-height:44px;accent-color:var(--cocoa)}
 .cards-app #crop-choose-another,.cards-app #adjust-roster-crop{width:100%;margin-top:10px}
+
+.cards-app .calendar-minimal .calendar-operation{padding:16px 0 4px;max-width:390px;margin:auto;text-align:left}
+.cards-app .calendar-minimal .calendar-operation [data-progress-label]{font-size:14px;font-weight:600;margin:0 0 8px;color:var(--ink)}
+.cards-app .calendar-minimal .calendar-operation progress{display:block;width:100%;height:10px;margin:0}
+.cards-app .calendar-minimal .calendar-operation-detail{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--muted);margin:9px 0}
+.cards-app .calendar-minimal [data-progress-elapsed]{white-space:nowrap}
+.cards-app .calendar-minimal progress:not([value])::-webkit-progress-bar{background:linear-gradient(90deg,#ded4cd 0%,#795c50 45%,#ded4cd 85%);background-size:200% 100%;animation:calendar-waiting 1.6s linear infinite}
+.cards-app .calendar-minimal progress:not([value])::-moz-progress-bar{background:linear-gradient(90deg,#ded4cd,#795c50,#ded4cd);background-size:200% 100%;animation:calendar-waiting 1.6s linear infinite}
+@keyframes calendar-waiting{from{background-position:200% 0}to{background-position:0 0}}
+@media(prefers-reduced-motion:reduce){.cards-app .calendar-minimal progress:not([value])::-webkit-progress-bar,.cards-app .calendar-minimal progress:not([value])::-moz-progress-bar{animation:none}}
