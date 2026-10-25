@@ -1,3 +1,13 @@
+## v0.16 — one-tap connection and calendar dropdown
+
+After confirming shifts, Calendar preview prepares Google Identity Services. Once ready, one tap on Connect Google opens the popup directly within the tap. Screenshots/OCR remain on-device; the Google library now loads when continuing to Calendar preview.
+
+Normal app requests exactly calendar.app.created and calendar.calendarlist.readonly. In Google Cloud Console → Google Auth Platform → Data Access, add https://www.googleapis.com/auth/calendar.calendarlist.readonly alongside the existing app-created scope. Keep your existing OAuth Web client, authorized origins and testing users. Reconnect and approve the additional list permission. No client secret is used. Original google-test.html retains its original app-created scope.
+
+The dropdown reads calendar-list metadata, filters owned secondary Roster candidates and verifies metadata plus app-created event access before saving a selection. Matching names alone do not grant access. Other calendars' events cannot be accessed. Tokens and list choices remain in memory; only the selected calendar ID is saved. Options retains manual ID entry if list consent is declined or the list is unavailable. Real roster writes remain disabled.
+
+Device check: confirm shifts, wait for Connect Google to become enabled, tap once, grant consent, select a Roster calendar and Check calendar. Repeat in Safari and installed iPhone mode; test reconnect/disconnect. These live checks require your account/device. Automated tests use synthetic metadata and mocked tokens.
+
 # Roster Calendar — Prototype 1
 
 Standalone static TypeScript/Vite PWA. Tests the Google Identity Services **token client** (popup flow), creation of a secondary **Roster** calendar, and insertion of one synthetic event. Follows `roster_calendar_phase1_plan_v2.md` §11 item 1. **Not the complete roster app.**

@@ -1,4 +1,6 @@
 export const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.app.created';
+export const CALENDAR_LIST_SCOPE = 'https://www.googleapis.com/auth/calendar.calendarlist.readonly';
+export const CALENDAR_AUTH_SCOPES = CALENDAR_SCOPE+' '+CALENDAR_LIST_SCOPE;
 export interface TokenResponse {
  access_token?: string;
  scope?: string;
@@ -33,16 +35,19 @@ export function loadGoogleScript(): Promise<void> {
  return scriptPromise!;
 }
 export function tokenClient(clientId: string, onToken: (response: TokenResponse) => void,
- onPopupError: (error: string) => void): TokenClient {
+ onPopupError: (error: string) => void, scopes = CALENDAR_SCOPE): TokenClient {
  const oauth = window.google?.accounts.oauth2;
  if (!oauth) throw new Error('Google sign-in not loaded');
- return oauth.initTokenClient({ client_id: clientId, scope: CALENDAR_SCOPE, include_granted_scopes: false,
+ return oauth.initTokenClient({ client_id: clientId, scope: scopes, include_granted_scopes: false,
   callback: onToken,
   error_callback: error => onPopupError(`${error.type}${error.message ? ': ' + error.message : ''}`)
  });
 }
 export function scopeGranted(response: TokenResponse): boolean {
  return !!window.google?.accounts.oauth2.hasGrantedAllScopes(response, CALENDAR_SCOPE);
+}
+export function calendarListGranted(response: TokenResponse): boolean {
+ return !!window.google?.accounts.oauth2.hasGrantedAllScopes(response, CALENDAR_LIST_SCOPE);
 }
 export class CalendarApiError extends Error {
  status: number;

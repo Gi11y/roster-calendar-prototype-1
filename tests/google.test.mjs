@@ -22,3 +22,7 @@ test('API errors surface status and Google detail', async () => {
  await assert.rejects(calendarApi('/calendars', 'mock'), /HTTP 403: Denied/);
  } finally { globalThis.fetch = original; }
 });
+
+import {CALENDAR_AUTH_SCOPES,CALENDAR_LIST_SCOPE,scopeGranted,calendarListGranted}from'../src/google.ts';
+test('the normal app explicitly requests only app-created event access plus read-only calendar listing',()=>{let config;globalThis.window={google:{accounts:{oauth2:{initTokenClient(c){config=c;return{requestAccessToken(){}};}}}}};tokenClient('public',()=>{},()=>{},CALENDAR_AUTH_SCOPES);assert.deepEqual(new Set(config.scope.split(' ')),new Set([CALENDAR_SCOPE,CALENDAR_LIST_SCOPE]));assert.equal(config.include_granted_scopes,false);});
+test('declining optional list access does not claim that it was granted',()=>{globalThis.window={google:{accounts:{oauth2:{hasGrantedAllScopes(response,...scopes){return scopes.every(s=>(response.scope||'').split(' ').includes(s));}}}}};const response={scope:CALENDAR_SCOPE};assert.equal(scopeGranted(response),true);assert.equal(calendarListGranted(response),false);});

@@ -1,5 +1,7 @@
+import {createSignInPreparation} from './signin-preparation';
+import {readRosterChoices,includeVerifiedChoice,type CalendarChoice} from './calendar-list';
 import {calendarStage,comparisonCounts,renderCalendarChanges} from './calendar-presentation';
-import {loadGoogleScript,tokenClient,scopeGranted,calendarApi as rawApi,type TokenResponse} from './google';
+import {loadGoogleScript,tokenClient,scopeGranted,calendarListGranted,CALENDAR_AUTH_SCOPES,CALENDAR_SCOPE,calendarApi as rawApi,type TokenResponse} from './google';
 import {readCalendarId,saveCalendarId} from './idb';
 import {verifyRosterCalendar,connectionLabel,type CalendarReadApi} from './calendar-selection';
 import {compareCalendar,isStatus,type Coverage,type Comparison} from './calendar-compare';
@@ -10,8 +12,11 @@ export function mountCalendarReview(){
  const auth=el<HTMLButtonElement>('review-auth'),disconnect=el<HTMLButtonElement>('review-disconnect'),use=el<HTMLButtonElement>('review-use-calendar'),input=el<HTMLInputElement>('review-calendar-id'),compare=el<HTMLButtonElement>('compare-calendar'),probe=el<HTMLButtonElement>('recovery-probe'),consent=el<HTMLInputElement>('probe-consent'),cleanup=el<HTMLButtonElement>('probe-cleanup');
  const removals=el<HTMLInputElement>('compare-removals'),from=el<HTMLInputElement>('coverage-start'),to=el<HTMLInputElement>('coverage-end');
  const clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
- let token:string|undefined,deadline=0,timer:ReturnType<typeof setTimeout>|undefined,prepared=false,busy=false,storageReady=false,verified=false,calendarId:string|undefined,epoch=0,revision=0,events:ApprovedEvent[]=[];
+ let token:string|undefined,deadline=0,timer:ReturnType<typeof setTimeout>|undefined,busy=false,storageReady=false,verified=false,calendarId:string|undefined,epoch=0,revision=0,events:ApprovedEvent[]=[];
  let pending:{calendarId:string;id:string}|undefined;
+ let choices:CalendarChoice[]=[],listAllowed=false;
+ const picker=document.getElementById('review-calendar-select') as HTMLSelectElement|null;
+ const preparation=createSignInPreparation(loadGoogleScript,()=>refresh());
  const minimal=!!document.getElementById('calendar-overview');let hasComparison=false;let lastCounts:ReturnType<typeof comparisonCounts>|undefined;
  const openOptions=(selection=false)=>{if(!minimal)return;el<HTMLDetailsElement>('calendar-options').open=true;if(selection){el<HTMLDetailsElement>('calendar-selection').open=true;input.focus();}};
  if(minimal){el('open-calendar-settings').addEventListener('click',()=>openOptions(true));el('review-reconnect').addEventListener('click',()=>auth.click());}
@@ -22,7 +27,7 @@ export function mountCalendarReview(){
   const connected=!!token&&Date.now()<deadline;
   el('review-connection').textContent=connectionLabel(connected,deadline);el('review-connection').dataset.connected=String(connected);
   el('review-destination').textContent=calendarId?(verified?'Verified Roster calendar: ':'Saved calendar; sign in to verify: ')+calendarId:'No saved Roster calendar. Copy its calendar ID from the working Google prototype.';
-  auth.disabled=busy||!clientId;auth.textContent=!prepared?'Prepare Google sign-in':connected?'Reconnect Google account':'Connect Google account';
+  auth.disabled=busy||!clientId||preparation.state==='loading';auth.textContent=preparation.state!=='ready'?'Prepare Google sign-in':connected?'Reconnect Google account':'Connect Google account';
   disconnect.disabled=!connected||busy;input.disabled=busy;use.disabled=busy||!connected||!storageReady||!input.value.trim()||!!pending;
   compare.disabled=busy||!connected||!verified||!events.length;
   consent.disabled=busy;probe.disabled=busy||!connected||!verified||!consent.checked||!!pending;
@@ -38,8 +43,13 @@ export function mountCalendarReview(){
    el('review-destination').textContent=connected&&verified?'Roster calendar selected':'';
    el('review-destination').hidden=!connected||!verified;
    el('calendar-id-detail').textContent=calendarId?'Saved calendar ID: '+calendarId:'No calendar selected.';
-   auth.hidden=stage!=='connect';auth.textContent=prepared?'Choose Google account':'Connect Google';
-   el('open-calendar-settings').hidden=stage!=='select';el<HTMLButtonElement>('open-calendar-settings').disabled=busy||!storageReady;
+   auth.hidden=stage!=='connect';auth.textContent=preparation.state==='loading'?'Preparing sign-in…':preparation.state==='failed'?'Retry sign-in setup':'Connect Google';
+   const showPicker=connected&&listAllowed&&choices.length>0&&!!picker;
+   el('calendar-picker-row').hidden=!showPicker;
+   if(picker){picker.disabled=busy||!!pending||!storageReady;picker.value=verified&&calendarId?calendarId:'';}
+   el<HTMLButtonElement>('refresh-calendar-list').disabled=busy||!connected||!listAllowed;
+   if(showPicker)el('review-destination').hidden=true;
+   el('open-calendar-settings').hidden=stage!=='select'||showPicker;el<HTMLButtonElement>('open-calendar-settings').disabled=busy||!storageReady;
    compare.hidden=stage!=='compare'&&stage!=='results';compare.textContent=busy?'Checking…':hasComparison?'Check again':'Check calendar';
    el('calendar-account-actions').hidden=!connected;el<HTMLButtonElement>('review-reconnect').disabled=busy;
    el('calendar-step-title').textContent=stage==='connect'?'Connect Google':stage==='select'?'Choose your Roster calendar':stage==='compare'?'Ready to compare':lastCounts&&(lastCounts.conflict+lastCounts.restore)>0?'Some shifts need review':lastCounts&&(lastCounts.new+lastCounts.changed+lastCounts.removed)>0?(lastCounts.new+lastCounts.changed+lastCounts.removed)+' changes found':'Already up to date';
@@ -48,7 +58,7 @@ export function mountCalendarReview(){
    if(pending&&!busy){openOptions();el<HTMLDetailsElement>('calendar-developer-tests').open=true;el<HTMLDetailsElement>('calendar-probe-details').open=true;}
   }
  }
- function clearToken(){token=undefined;deadline=0;clearTimeout(timer);verified=false;epoch++;invalidate();refresh();}
+ function clearToken(){listAllowed=false;choices=[];renderChoices();token=undefined;deadline=0;clearTimeout(timer);verified=false;epoch++;invalidate();refresh();}
  function requireToken(){if(!token||Date.now()>=deadline){clearToken();throw Error('Google connection expired. Reconnect and compare again.');}return token;}
  function guardedApi(connectionEpoch:number):CalendarReadApi{
   return async<T>(path:string,accessToken:string,method='GET',body?:unknown,ifMatch?:string):Promise<T>=>{
@@ -56,6 +66,15 @@ export function mountCalendarReview(){
    try{const value=await rawApi<T>(path,accessToken,method,body,ifMatch);if(connectionEpoch!==epoch)throw Error('Connection changed while the request was running.');return value;}
    catch(error){if(isStatus(error,401))clearToken();throw error;}
   };
+ }
+ function renderChoices(){if(!picker)return;picker.replaceChildren();const hint=document.createElement('option');hint.value='';hint.textContent='Choose Roster calendar';picker.append(hint);for(const choice of choices){const option=document.createElement('option');option.value=choice.id;option.textContent=choice.label;picker.append(option);}}
+ async function loadChoices(connectionEpoch:number){
+  if(!minimal||!listAllowed)return;
+  choices=await readRosterChoices(guardedApi(connectionEpoch),requireToken());
+  if(connectionEpoch!==epoch)return;
+  if(verified&&calendarId)choices=includeVerifiedChoice(choices,{id:calendarId,summary:'Roster'});
+  renderChoices();
+  if(!choices.length)say('No Roster calendars found in the list. Use Options to enter an existing calendar ID.');
  }
  async function verifySaved(connectionEpoch:number){
   if(!calendarId)return;
@@ -66,11 +85,11 @@ export function mountCalendarReview(){
  }
  auth.addEventListener('click',async()=>{
   if(busy)return;
-  if(!prepared){busy=true;refresh();if(minimal)say('Preparing sign-in…');try{await loadGoogleScript();prepared=true;say(minimal?'Ready. Tap Choose Google account.':'Google sign-in ready. Tap Connect Google account to open the popup.');}catch(error){say(errorText(error));}finally{busy=false;refresh();}return;}
+  if(preparation.state!=='ready'){try{await preparation.prepare();say('Sign-in ready. Tap Connect Google.');}catch(error){say(errorText(error));}return;}
   if(!clientId)return;
   clearToken();const connectionEpoch=epoch;busy=true;refresh();say('Opening Google account popup…');
   try{
-   // Keep popup opening synchronous with this deliberate second tap, including on iPhone.
+   // Keep popup opening synchronous with the Connect Google tap, including on iPhone.
    tokenClient(clientId,async(response:TokenResponse)=>{
     if(connectionEpoch!==epoch)return;
     try{
@@ -78,25 +97,34 @@ export function mountCalendarReview(){
      if(response.error||!response.access_token||!scopeGranted(response)||!Number.isFinite(seconds)||seconds<=60)throw Error('Google permission was not granted or the connection is already expired.');
      token=response.access_token;const lifetime=seconds*1000-60000;deadline=Date.now()+lifetime;
      timer=setTimeout(()=>{clearToken();say('Google connection expired. Your reviewed shifts remain available; reconnect.');},lifetime);
-     await verifySaved(connectionEpoch);
-     say(minimal?'':verified?'Google connected. Existing Roster calendar verified. Comparison is read only.':'Google connected. Enter your existing Roster calendar ID below.');
+     listAllowed=minimal&&calendarListGranted(response);
+     let notice='';
+     try{await verifySaved(connectionEpoch);}catch(error){notice='Saved calendar check: '+errorText(error);}
+     try{await loadChoices(connectionEpoch);}catch(error){notice+=' Calendar list: '+errorText(error);}
+     if(minimal&&listAllowed&&!choices.length&&!notice)notice='No Roster calendars found. Open Options to enter an existing calendar ID.';
+     if(minimal&&!listAllowed)notice+=' Calendar-list permission was not granted. Use Options to enter the calendar ID, or reconnect to grant it.';
+     say(minimal?notice:verified?'Google connected. Existing Roster calendar verified. Comparison is read only.':'Google connected. Enter your existing Roster calendar ID below.');
     }catch(error){say('Connection/calendar check: '+errorText(error));}
     finally{busy=false;refresh();}
-   },message=>{if(connectionEpoch!==epoch)return;busy=false;say('Google popup: '+message+'. Try a normal Safari/Chrome tab if the home-screen popup is blocked.');refresh();}).requestAccessToken({prompt:'select_account'});
+   },message=>{if(connectionEpoch!==epoch)return;busy=false;say('Google popup: '+message+'. Try a normal Safari/Chrome tab if the home-screen popup is blocked.');refresh();},minimal?CALENDAR_AUTH_SCOPES:CALENDAR_SCOPE).requestAccessToken({prompt:'select_account'});
   }catch(error){busy=false;say(errorText(error));refresh();}
  });
  disconnect.addEventListener('click',()=>{clearToken();say('Google disconnected in this app. Reviewed shifts stay on this device.');});
  input.addEventListener('input',refresh);
- use.addEventListener('click',async()=>{
-  if(busy||pending)return;
+ async function selectCalendar(id:string){
+  if(busy||pending||!storageReady)return;
   busy=true;refresh();const connectionEpoch=epoch;
   try{
-   const calendar=await verifyRosterCalendar(guardedApi(connectionEpoch),input.value,requireToken());
+   const calendar=await verifyRosterCalendar(guardedApi(connectionEpoch),id,requireToken());
+   if(connectionEpoch!==epoch)throw Error('Google connection changed.');
    await saveCalendarId(calendar.id);
    if(connectionEpoch!==epoch)throw Error('Google connection changed.');
-   calendarId=calendar.id;verified=true;invalidate();say(minimal?'':'Existing Roster calendar verified and selected. No calendar was created.');
+   calendarId=calendar.id;verified=true;choices=includeVerifiedChoice(choices,calendar);renderChoices();invalidate();say(minimal?'':'Existing Roster calendar verified and selected. No calendar was created.');
   }catch(error){say('Calendar selection: '+errorText(error));}finally{busy=false;refresh();}
- });
+ }
+ use.addEventListener('click',()=>void selectCalendar(input.value));
+ picker?.addEventListener('change',()=>{if(picker.value)void selectCalendar(picker.value);});
+ if(minimal)el('refresh-calendar-list').addEventListener('click',async()=>{if(busy||!listAllowed)return;busy=true;refresh();try{await loadChoices(epoch);}catch(error){say('Calendar list: '+errorText(error));}finally{busy=false;refresh();}});
  for(const field of [removals,from,to])field.addEventListener('change',()=>{invalidate();refresh();});
  compare.addEventListener('click',async()=>{
   if(busy||!verified||!calendarId||!events.length)return;
@@ -156,5 +184,5 @@ export function mountCalendarReview(){
  document.addEventListener('visibilitychange',()=>{if(!document.hidden){if(token&&Date.now()>=deadline)clearToken();refresh();}});
  if(!clientId)say('Google client ID is missing from this build. Local review remains available.');
  refresh();
- return{setEvents(approved:ApprovedEvent[]){events=structuredClone(approved);invalidate();refresh();}};
+ return{setEvents(approved:ApprovedEvent[]){events=structuredClone(approved);invalidate();refresh();if(events.length)void preparation.prepare().catch(error=>say(errorText(error)));}};
 }
