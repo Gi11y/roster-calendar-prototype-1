@@ -32,3 +32,10 @@ test('invalid and identical dates/times, forgotten overnight and excessive durat
 test('printed 07:00–15:30 remains 8.5 hours, without adding breaks',()=>{
  assert.equal(range('2026-11-04','07:00','15:30',false).elapsedMinutes,510);
 });
+
+test('conversion is identical when the device timezone changes',async()=>{
+ const {execFileSync}=await import('node:child_process');
+ const code="import {sydneyRange} from './src/sydney-time.ts';console.log(JSON.stringify(sydneyRange('2026-10-03','19:00','07:00',true)))";
+ const run=TZ=>execFileSync(process.execPath,['--experimental-strip-types','--input-type=module','-e',code],{env:{...process.env,TZ},encoding:'utf8'});
+ assert.equal(run('Pacific/Honolulu'),run('Australia/Sydney'));assert.equal(run('America/New_York'),run('UTC'));
+});
