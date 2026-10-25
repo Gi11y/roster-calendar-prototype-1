@@ -1,7 +1,7 @@
 import './style.css';
 import {detectCards,findGrid,dayCell,labelFromText,proposal,type Card,type Grid,type Colour} from './card-data';
 import {parseTsv} from './ocr-data';
-import {isolateLabel,chooseLabel,pGlyphEvidence,type LabelReading} from './label-data';
+import {isolateLabel,chooseLabel,pGlyphEvidence,pGlyphCheck,type LabelReading} from './label-data';
 interface Worker {recognize(image:HTMLCanvasElement,options:object,output:object):Promise<{data:{text:string;tsv:string}}> ;setParameters(options:object):Promise<unknown>;terminate():Promise<unknown>}
 interface Engine {createWorker(lang:string,oem:number,options:object):Promise<Worker>}
 declare global {interface Window {Tesseract?:Engine}}
@@ -34,14 +34,14 @@ function crop(x:number,y:number,width:number,height:number,mode='original',scale
  if(mode==='threshold'){const pixels=ctx.getImageData(0,0,c.width,c.height),d=pixels.data;for(let i=0;i<d.length;i+=4){const v=.299*d[i]+.587*d[i+1]+.114*d[i+2]>=85?255:0;d[i]=d[i+1]=d[i+2]=v;}ctx.putImageData(pixels,0,0);}return c;
 }
 
-function labelFrames(card:Card):{normal:HTMLCanvasElement;binary:HTMLCanvasElement;multiple:boolean;shape?:LabelReading}|undefined{
+function labelFrames(card:Card):{normal:HTMLCanvasElement;binary:HTMLCanvasElement;multiple:boolean;shape?:LabelReading;diagnostic:string}|undefined{
  const region=crop(card.x+2,card.y+2,Math.min(45,card.width-4),Math.min(24,Math.max(20,card.height*.35)),'original',1),ctx=region.getContext('2d',{willReadFrequently:true})!,pixels=ctx.getImageData(0,0,region.width,region.height);
  const isolated=isolateLabel(pixels.data,region.width,region.height,card.rgb);if(!isolated)return;
  const b=isolated.bounds,bg=.299*card.rgb[0]+.587*card.rgb[1]+.114*card.rgb[2];
  function frame(binary:boolean){const raw=document.createElement('canvas');raw.width=b.width;raw.height=b.height;const small=raw.getContext('2d')!,out=small.createImageData(b.width,b.height);
  for(let y=0;y<b.height;y++)for(let x=0;x<b.width;x++){const src=((b.y+y)*region.width+b.x+x)*4,dst=(y*b.width+x)*4;const lum=.299*pixels.data[src]+.587*pixels.data[src+1]+.114*pixels.data[src+2];const v=binary?(isolated!.lightInk?(lum>Math.min(245,bg+45)?0:255):(lum<bg*.74?0:255)):Math.max(0,Math.min(255,Math.round(isolated!.lightInk?255-(lum-bg)/(255-bg)*255:(lum-bg*.1)/(bg*.9)*255)));out.data[dst]=out.data[dst+1]=out.data[dst+2]=v;out.data[dst+3]=255;}
  small.putImageData(out,0,0);const canvas=document.createElement('canvas');canvas.width=b.width*8+32;canvas.height=b.height*8+32;const large=canvas.getContext('2d')!;large.fillStyle='#fff';large.fillRect(0,0,canvas.width,canvas.height);large.imageSmoothingEnabled=!binary;large.drawImage(raw,16,16,b.width*8,b.height*8);return canvas;}
- return{normal:frame(false),binary:frame(true),multiple:isolated.components>1,shape:pGlyphEvidence(isolated)};
+ return{normal:frame(false),binary:frame(true),multiple:isolated.components>1,shape:pGlyphEvidence(isolated),diagnostic:pGlyphCheck(isolated).reason+' '+JSON.stringify(pGlyphCheck(isolated).metrics||{})};
 }
 
 function render(){list.replaceChildren();for(const result of results){
@@ -56,7 +56,7 @@ function render(){list.replaceChildren();for(const result of results){
  const labelNote=document.createElement('p');labelNote.textContent=result.labelNote||'';section.append(labelNote);
  const note=document.createElement('p');if(result.confidence!==undefined)note.textContent='Label reading score: '+result.confidence.toFixed(1)+' (not a probability or guarantee).';section.append(note);
  const proposed=document.createElement('p');proposed.className='proposal';const update=()=>{card.colour=colour.value as Colour;result.label=label.value||undefined;const p=proposal(result.label,card.colour,result.text);const role=card.colour==='light'?'Educator shift - ':card.colour==='dark'?'Floor staff - ':'';proposed.textContent=role+(p.range?p.range.start+' to '+p.range.end+(p.range.nextDay?' (+1 day)':'')+' - '+p.basis+(p.warning?'. '+p.warning:''):p.basis+': '+p.warning);};colour.addEventListener('change',update);label.addEventListener('change',update);update();section.append(proposed);
- const raw=document.createElement('details'),summary=document.createElement('summary');summary.textContent='OCR evidence / errors';raw.append(summary);const text=document.createElement('pre');text.textContent=result.error||result.text||'Not read yet.';raw.append(text);section.append(raw);list.append(section);
+ const raw=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Recognition diagnostics (raw OCR and rejection reasons)';raw.open=!!result.text&&!result.label;raw.append(summary);const text=document.createElement('pre');text.textContent=result.error||result.text||'Not read yet.';raw.append(text);section.append(raw);list.append(section);
  }}
 read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;const job=++generation;busy=true;controls();progress.value=0;status.textContent='Loading the on-device card reader...';let current:Worker|undefined;
  try{const lib=await engine();if(job!==generation)return;current=await lib.createWorker('eng',1,{workerPath:root+'worker.min.js',corePath:root,langPath:root.replace(/\/$/,''),workerBlobURL:false,cacheMethod:'none',gzip:true});if(job!==generation){await current.terminate();return;}worker=current;
@@ -69,14 +69,15 @@ read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;c
   for(const [name,canvas,mode] of [['isolated contrast',frames.normal,'7'],['isolated binary',frames.binary,frames.multiple?'7':'10']] as const){
    await current.setParameters({tessedit_pageseg_mode:mode,tessedit_char_whitelist:'APNapn10',user_defined_dpi:'300'});
    const result=await current.recognize(canvas,{}, {text:true,tsv:true});if(job!==generation)return;
-   const tokens=parseTsv(result.data.tsv||'');readings.push({label:labelFromText(result.data.text),confidence:tokens.length?Math.min(...tokens.map(w=>w.confidence)):0,source:name});
+   const tokens=parseTsv(result.data.tsv||'');readings.push({label:labelFromText(result.data.text),confidence:tokens.length?Math.min(...tokens.map(w=>w.confidence)):0,source:name,rawText:result.data.text,detail:!result.data.text.trim()?'Engine returned blank text':!labelFromText(result.data.text)?'Raw text did not match A/P/N/N10':!tokens.length?'No word-confidence record in TSV':'Valid label candidate'});
   }
  }
  await current.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:'',preserve_interword_spaces:'1'});
  const full=await current.recognize(crop(c.x-2,c.y-2,c.width+4,c.height+4),{},{text:true,tsv:true});if(job!==generation)return;result.text=full.data.text;
- const fullWords=parseTsv(full.data.tsv||'');readings.push({label:labelFromText(full.data.text),confidence:fullWords[0]?.confidence||0,source:'full card'});
+ const fullWords=parseTsv(full.data.tsv||'');readings.push({label:labelFromText(full.data.text),confidence:fullWords[0]?.confidence||0,source:'full card',rawText:full.data.text.trim().split(String.fromCharCode(10))[0],detail:!labelFromText(full.data.text)?'First line did not match a valid label':'Full-card candidate'});
  const decision=chooseLabel(readings);result.label=decision.label;result.confidence=decision.confidence;result.labelNote=decision.label==='P'&&frames?.shape?'P-shaped upper loop and lower stem support this label. Verify the enlarged crop.':decision.reason;
- result.text+='\nLabel readings: '+readings.map(r=>r.source+' = '+(r.label||'?')+' ('+r.confidence.toFixed(1)+')').join('; ');
+ result.text+='\nLabel readings: '+readings.map(r=>r.source+' = '+(r.label||'?')+' ('+r.confidence.toFixed(1)+'); raw '+JSON.stringify(r.rawText??'')+'; '+(r.detail||'')).join('\n');
+ result.text+='\nGlyph isolation: '+(frames?frames.diagnostic:'No connected label crop found.');
 
  if(c.height>27){
  await current.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'0123456789:-. '});

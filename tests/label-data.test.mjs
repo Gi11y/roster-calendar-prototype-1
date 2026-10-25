@@ -18,3 +18,7 @@ import {pGlyphEvidence} from '../src/label-data.ts';
 function glyph(rows){const w=12,h=16,d=new Uint8ClampedArray(w*h*4);for(let i=0;i<w*h;i++)d.set([35,185,35,255],i*4);rows.forEach((row,y)=>[...row].forEach((v,x)=>{if(v==='1')d.set([0,0,0,255],((y+3)*w+x+3)*4);}));return isolateLabel(d,w,h,[35,185,35]);}
 test('clear P upper-loop and lower-stem contour supplies evidence',()=>{const p=glyph(['11110','11011','11011','11110','11000','11000','11000']);assert.equal(pGlyphEvidence(p)?.label,'P');});
 test('A, N and closed-box shapes never get P evidence',()=>{for(const rows of [['00100','01110','11011','11011','11111','11011','11011'],['11011','11111','11111','11011','11011','11011','11011'],['11111','11011','11011','11011','11011','11011','11111']])assert.equal(pGlyphEvidence(glyph(rows)),undefined);});
+
+import {pGlyphCheck} from '../src/label-data.ts';
+test('P bowl extending into the lower 40 percent is not mistaken for a lower right leg',()=>{const p=glyph(['1111100','1111110','1100111','1100111','1111110','1111110','1100000','1100000','1100000']);const check=pGlyphCheck(p);assert.equal(check.reading?.label,'P');assert.equal(check.metrics.lowerRightInk,0);});
+test('rejection diagnostics explain why unsupported glyphs fail',()=>{assert.match(pGlyphCheck(undefined).reason,/No isolated glyph/);const a=glyph(['00100','01110','11011','11011','11111','11011','11011']);assert.match(pGlyphCheck(a).reason,/rejected/);});
