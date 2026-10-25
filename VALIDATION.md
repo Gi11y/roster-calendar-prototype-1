@@ -32,3 +32,11 @@ Prototype 3 still owns lost-calendar-ID recovery and deleted-event-ID reuse. Do 
 The original three-test record above describes the initial archive. The v0.2 revision adds 11 regression tests for stable identity, repeat import, legacy copies, pagination, HTTP 409, cancelled IDs, read failure, exact matching, approved cleanup, changed preview and lost responses. The total is now 14 tests. Local TypeScript/Vite and production artifact checks pass. Tests mock Google responses; real account/device regression testing remains necessary.
 
 The initial deployment to https://gi11y.github.io/roster-calendar-prototype-1/ succeeded in GitHub Actions, and the owner reported successful laptop OAuth and event insertion. That test exposed duplicates from automatically allocated event IDs. v0.2 prevents further identical insertions and offers cleanup after an explicit user click. No user calendar was modified by the local regression tests. Lost calendar recovery, full roster reconciliation and deleted-ID reuse remain out of scope.
+
+## v0.3 connection indicator and existing calendar selection — 25 October 2026
+
+21 unit tests pass: the prior 14 plus 7 tests for read-only existing-calendar validation, rejected primary IDs/URLs/tokens, wrong-account/read failures, unrelated calendars, renamed app calendars, connection expiry labels and guarded new-calendar creation. Strict TypeScript/Vite production build and production artifact tests also pass. API responses and connection time are mocked; real Google verification in Safari/standalone remains a user acceptance check.
+
+Google documentation confirms CalendarList.list requires a scope beyond calendar.app.created. No scope was broadened. A manual ID-transfer path uses Calendars.get and Events.list under the existing scope; no live automatic discovery claim is made. The owner reported successful iPhone Safari usage and successful manual Google sign-in from the home-screen app. A duplicate calendar arose when Create Roster calendar was used in a separate storage context; v0.3 puts creation behind an explicit first-time acknowledgement and offers reuse of the intended existing ID.
+
+This update does not delete or merge duplicate calendars. All existing event and calendar content is left in place until a user explicitly performs an available operation.

@@ -68,20 +68,28 @@ npm run preview
 
 Open `http://localhost:4173/roster-calendar-prototype-1/`. Add `http://localhost:4173` as an OAuth authorised JavaScript origin if testing OAuth in preview. The production artifact check reads the configured base from the generated HTML. Remove the environment variable for ordinary local development: `Remove-Item Env:GITHUB_REPOSITORY`.
 
-## 4. iPhone Safari and home-screen acceptance test
+## 4. iPhone Safari and home-screen acceptance test (v0.3)
 
-On the iPhone, use the **same personal Google account listed as a Test user**.
+1. Close app tabs and reopen the deployed link. Confirm **Prototype 1 v0.3**. Do not clear site data.
+2. Prepare Google sign-in, then connect your personal Google account. PASS: the persistent indicator turns green and says **Google connected**, including after calendar/event operations. On expiry, reload, page exit or HTTP 401 it must show not connected until you reconnect; tokens remain memory-only.
+3. If a calendar is already saved, the app verifies it with the current Google account. PASS: destination says **Using your verified Roster calendar** and the event button enables. Wrong account, deleted calendar or inaccessible calendar must leave event writes disabled and explain the failure.
+4. On the working laptop or Safari version, tap **Copy selected calendar ID**. In the other mode/device, paste that ID in **Existing Roster calendar ID**, connect the same Google account and tap **Verify and use existing calendar**. PASS: both apps show exactly the same saved ID; no new Roster calendar or event is created by selection. Existing selection is preserved if verification or storage fails.
+5. Only if you have never created a calendar: open **First time only: create a new Roster calendar**, read the warning, check the acknowledgement, then create once. The create button must otherwise stay disabled, including when a calendar ID is saved.
+6. Tap **Check / add test event** twice. PASS: the second check reports already exists. Verify **Roster Prototype 1 Test**, 3 November 2026, 12:00-12:30 Sydney time. If extras exist within this selected calendar, review the displayed count and choose the cleanup button to keep one.
+7. Safari: Share > Add to Home Screen. Launch the new icon and confirm **Home-screen standalone** in diagnostics. Repeat sign-in and existing-calendar selection using the SAME ID. Manual Google sign-in may be necessary. Record failure if the popup cannot return a token; use Safari sync as the architecture fallback.
+8. Close/reopen and reconnect: PASS if the same saved calendar is verified again and no new calendar is created. Also check offline shell relaunch; Google sign-in and calendar operations require internet.
 
-1. In Safari, visit the GitHub Pages URL. The diagnostics should display **Browser tab**.
-2. Click Prepare Google sign-in and then Connect Google account. Allow browser popups if prompted. Grant the sole requested calendar scope. **PASS** if the page reports `Google token received ... scope granted`. **FAIL** if popup is blocked, closes without returning a token, returns `origin_mismatch`, `access_denied`, etc.; capture the exact message.
-3. Click Create Roster calendar **once**; confirm a new **Roster** secondary calendar exists in Google Calendar and the app shows an IndexedDB calendar ID. **PASS** if both checks match. Reload and confirm the same calendar ID appears, and the Create button is disabled (rather than creating duplicates). **FAIL** if creation failed or ID was lost.
-4. Click Check / add test event; verify **Roster Prototype 1 Test** at **12:00–12:30 on 3 Nov 2026** in the dedicated Roster calendar. **PASS** if it's in that secondary calendar, not the primary. **FAIL** if an API error appears or the event is missing/has wrong times.
-5. In Safari: Share > **Add to Home Screen** > Add. Launch via the new icon (not by returning to Safari). Diagnostics must say **Home-screen standalone**. It may have a separate IndexedDB store from Safari.
-6. Repeat Prepare > Connect. **PASS** if the standalone flow returns the Google token. **FAIL** if popup fails (e.g. `popup_failed_to_open`, `popup_closed`). This failure is a significant result: use Safari for sync unless further testing proves a safe standalone approach.
-7. If standalone has **no stored calendar ID**, do **not** click Create again just to test sign-in: it could create a duplicate Roster calendar. The recovery problem is explicitly reserved for prototype 3. If standalone does have the ID, test inserting one event there (repeat it to check that the event count stays unchanged).
-8. Also verify an offline relaunch displays the app shell, but **authentication and Calendar API writes are not expected to work offline**. This prototype does not include OCR assets.
+Record iOS version, mode, popup/token result, persistent indicator, both saved IDs (compare locally), event count and errors. Never record access tokens.
 
-**Record results:** iOS version, browser/home-screen mode, date, whether popup opened, whether token returned, whether calendar was created, whether event was inserted, and exact error text if a step fails. Screen capture the failure where possible, but never capture the access token.
+### Existing duplicate calendars
+
+Earlier versions could create separate Roster calendars in Safari and standalone storage. v0.3 does not merge or delete calendars or move their events. Pick the intended original ID on the working device and use it everywhere. Clean up a redundant calendar separately in Google Calendar only after checking its contents. Event duplicate detection is limited to the selected calendar.
+
+### Recovery scope finding
+
+Google's CalendarList.list documentation does not list `calendar.app.created` as an accepted scope. Calendars.get and Events.list support it. This version therefore uses explicit calendar-ID transfer and verifies access, with no extra scope. It does not claim automatic lost-ID discovery. If every saved ID is lost, the owner can obtain the intended calendar's ID from Google Calendar settings (Integrate calendar > Calendar ID), or separately approve broader scope in future work.
+
+Sources: https://developers.google.com/workspace/calendar/api/v3/reference/calendarList/list and https://developers.google.com/workspace/calendar/api/v3/reference/calendars/get
 
 ## Security and data handling
 
@@ -90,7 +98,7 @@ On the iPhone, use the **same personal Google account listed as a Test user**.
 - Google GIS script is requested only after a user action. Browsing the shell before that does not call Google.
 - No screenshots, roster information, analytics or external OCR.
 - Network access to Google is necessary for token and calendar operations. A meta Content-Security-Policy restricts scripts and connections to this origin and the necessary Google endpoints. Its compatibility with live GIS still requires the acceptance tests; GitHub Pages does not provide custom per-repository response headers.
-- The same Calendar ID cannot necessarily be used by a different account. If you switch Google accounts, the event step may return 403/404. This prototype does not yet identify or recover accounts/calendars.
+- The same Calendar ID cannot necessarily be used by a different account. If you switch Google accounts, the event step may return 403/404. This prototype does not yet identify or automatically discover calendars. Existing secondary IDs can now be selected and verified.
 - Prototype 1 uses a stable SHA-256 ID for the synthetic event, reuses matching legacy events and handles HTTP 409 without choosing a new ID. Full roster reconciliation and deleted-ID recovery remain later work.
 - If the calendar creation call succeeds but saving to IndexedDB fails, the app warns you to check Google Calendar before retrying. Recovering IDs is a separate test.
 
@@ -117,7 +125,7 @@ On the iPhone, use the **same personal Google account listed as a Test user**.
 
 ## Verification delivered with this archive
 
-See VALIDATION.md for executed checks and remaining device/account tests. The original architecture plan is included unchanged. Prototype 1 does not implement OCR, parsing, real shifts, deterministic event reconciliation, calendar recovery or deleted-ID reuse; these remain later prototypes. No shift hours or roster layout were assumed.
+See VALIDATION.md for executed checks and remaining device/account tests. The original architecture plan is included unchanged. Prototype 1 does not implement OCR, parsing, real shifts, deterministic event reconciliation, automatic calendar discovery or deleted-ID reuse; these remain later prototypes. No shift hours or roster layout were assumed.
 
 Wait until the service worker is activated, reload online once, then test offline shell launch. A service-worker registration message alone is not proof of offline readiness. Updates take effect after old app windows close; this avoids mixing old HTML with new assets.
 
@@ -130,3 +138,9 @@ Close all open tabs/windows of the hosted app, then reopen it so the new service
 Connect the same Google account, click Check / add test event twice, reload/reconnect, and repeat. PASS: one synthetic event remains (or existing legacy duplicates are reported without a further insertion). If extras are reported, click the button that says how many it will remove. PASS: exactly one identical test event remains; a second check offers no cleanup. FAIL: count increases, unrelated events change, or the API reports an error.
 
 Tests cover retries after a lost response, concurrent HTTP 409, legacy pagination, UTC/local offset equivalence, changed/cancelled events and cleanup validation. No broad calendar scan or cross-calendar cleanup occurs. If copies are in different Roster calendars, stop: calendar-ID recovery is still a separate prototype.
+
+## v0.3 connection and calendar selection
+
+A dedicated connected indicator is independent of operation messages. Saved IDs are reverified after every new Google connection before events can be written. Existing-calendar verification uses read-only metadata and a minimal events-list request; only the ID is stored in IndexedDB after verification succeeds. No calendar-list scope, profile/email scope or refresh-token storage was added.
+
+Creation is hidden in a first-time setup disclosure and requires explicit acknowledgement. Shared browser/device contexts should transfer the same ID using the copy/paste path. The legacy synthetic-event deduplication and explicit cleanup from v0.2 are retained.

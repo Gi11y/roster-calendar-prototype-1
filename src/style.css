@@ -1,1 +1,6 @@
 *{box-sizing:border-box}body{margin:0;background:#f5f8fb;color:#203044;font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,sans-serif}main{max-width:680px;margin:auto;padding:24px 18px 64px}header{background:#123d57;color:white;padding:24px;border-radius:16px;margin-bottom:18px}header h1{margin:0}header p{margin:6px 0 0;opacity:.85}section{background:white;border:1px solid #dfe7ef;border-radius:14px;padding:20px;margin-bottom:14px}section h2{font-size:1.1rem;margin:0 0 8px}.notice{background:#fff8e8;border-color:#f1daa1}button{border:0;border-radius:10px;background:#146b9d;color:white;font-weight:650;font-size:16px;padding:12px 16px;min-height:48px;cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}.small,footer{font-size:.85rem;color:#516579}code{overflow-wrap:anywhere}#status,#calendar{overflow-wrap:anywhere}#status{font-weight:650}a{color:#146b9d}
+
+#connection{padding:10px 14px;border-radius:8px;background:#fff1df;color:#754500;font-weight:700}
+#connection[data-connected="true"]{background:#e3f5e8;color:#135b2b}
+label{display:block;margin:14px 0 6px}input[type="text"]{width:100%;padding:12px;border:1px solid #8899aa;border-radius:8px;margin-bottom:10px;font:inherit}
+details{margin-top:18px;border-top:1px solid #dfe7ef;padding-top:14px}summary{cursor:pointer}#copy-calendar{margin-bottom:8px}#destination{font-weight:600}
