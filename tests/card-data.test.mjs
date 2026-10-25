@@ -18,3 +18,5 @@ test('grid detection finds regular column borders and refuses an absent grid',()
 test('repeated identical readings are one range; conflicting passes stay ambiguous',()=>{assert.equal(explicitRange('07:00 - 15:30\\nTime line: 07:00 - 15:30').end,'15:30');assert.equal(explicitRange('07:00 - 18:30\\nTime line: 07:00 - 19:30'),undefined);});
 
 test('educator role does not imply 12h, but printed times take precedence',()=>{assert.equal(proposal('N','light','N').range.end,'07:00');assert.equal(proposal('A','light','A 08:00 - 16:00').range.end,'16:00');assert.equal(proposal('A','light','A').range.end,'15:00');});
+
+test('a tightly cropped single card is not rejected for spanning most image width',()=>{const x=image();x.rectangle(4,4,192,170,[160,200,0]);assert.equal(detectCards(x.d,x.w,x.h).length,1);});

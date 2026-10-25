@@ -17,7 +17,7 @@ export function detectCards(data:Uint8ClampedArray,width:number,height:number):C
    for(const next of [x>0?i-1:-1,x+1<width?i+1:-1,y>0?i-width:-1,y+1<height?i+width:-1])if(next>=0&&mask[next]){mask[next]=0;queue[tail++]=next;}
   }
   const w=x1-x0+1,h=y1-y0+1,coverage=count/(w*h);
-  if(w<Math.max(22,width*.023)||h<14||w>width*.55||count<180||coverage<.35)continue;
+  if(w<Math.max(22,width*.023)||h<14||(w>width*.98&&h>height*.98)||count<180||coverage<.35)continue;
   let mode=0;for(let k=1;k<360;k++)if(hist[k]>hist[mode])mode=k;
   const n=hist[mode],rgb=[rgbs[mode*3]/n,rgbs[mode*3+1]/n,rgbs[mode*3+2]/n] as [number,number,number],sat=(Math.max(...rgb)-Math.min(...rgb))/Math.max(...rgb);
   found.push({id:0,x:x0,y:y0,width:w,height:h,rgb:rgb.map(Math.round) as [number,number,number],hue:mode,colour:classify(mode,sat),coverage});
