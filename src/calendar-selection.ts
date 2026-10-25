@@ -1,3 +1,10 @@
+export const ROSTER_DESCRIPTION='Dedicated calendar for roster imports (prototype test)';
+export function calendarSetupId(description:string|undefined):string|undefined{
+ const prefix=ROSTER_DESCRIPTION+'\nSetup ID: ';
+ if(!description?.startsWith(prefix))return undefined;
+ const id=description.slice(prefix.length);return /^[a-f0-9]{64}$/.test(id)?id:undefined;
+}
+export function isRosterMetadata(summary:string|undefined,description:string|undefined):boolean{return summary==='Roster'||description===ROSTER_DESCRIPTION||!!calendarSetupId(description);}
 export interface RosterCalendar { id: string; summary: string; timeZone?: string; description?: string; }
 export type CalendarReadApi = <T>(path: string, token: string, method?: string, body?: unknown, ifMatch?: string) => Promise<T>;
 export function validateCalendarId(value: string): string {
@@ -8,7 +15,7 @@ export function validateCalendarId(value: string): string {
 export async function verifyRosterCalendar(api: CalendarReadApi, value: string, token: string): Promise<RosterCalendar> {
  const id = validateCalendarId(value);
  const calendar = await api<RosterCalendar>(`/calendars/${encodeURIComponent(id)}`, token);
- if (calendar.id !== id || (calendar.summary !== 'Roster' && calendar.description !== 'Dedicated calendar for roster imports (prototype test)')) throw new Error('This is not a recognised Roster calendar. Your saved selection has not changed.');
+ if (calendar.id !== id || !isRosterMetadata(calendar.summary,calendar.description)) throw new Error('This is not a recognised Roster calendar. Your saved selection has not changed.');
  // Read only. Confirms that the signed-in account and the current app scope can use it.
  await api(`/calendars/${encodeURIComponent(id)}/events?maxResults=1`, token);
  return calendar;

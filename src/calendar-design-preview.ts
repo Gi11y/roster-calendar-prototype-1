@@ -1,3 +1,4 @@
+import {firstTimeCalendarState} from './calendar-create';
 import './style.css';import './cards-theme.css';
 import {comparisonCounts,renderCalendarChanges,applyActionState}from'./calendar-presentation';
 import type{ApprovedEvent}from'./approved-events';
@@ -17,3 +18,13 @@ apply.hidden=action.hidden;apply.textContent=action.label;apply.disabled=true;
 el('calendar-apply-hint').textContent='Design preview only. The live app requires complete coverage, removal confirmation and a passed recovery check.';
 el('calendar-removal-confirmation').hidden=false;(el('confirm-calendar-removals')as HTMLInputElement).checked=true;el('calendar-removal-label').textContent='Remove the 1 listed shift. Complete coverage confirmed: 14–20 January.';
 
+
+if(new URLSearchParams(location.search).get('view')==='setup'){
+ const state=firstTimeCalendarState(true,false,true,true,0);
+ el('calendar-overview').dataset.stage='select';el('comparison-results').hidden=true;el('calendar-main-actions').hidden=false;
+ el('calendar-step-title').textContent=state.title;el('calendar-step-copy').textContent=state.copy;
+ el('review-connection').textContent='Google connected ✓ (example)';
+ el('calendar-approved-count').textContent='Your confirmed shifts';el('review-destination').hidden=true;
+ el('review-create-calendar').hidden=false;el('open-calendar-settings').hidden=false;el('open-calendar-settings').textContent='Use an existing calendar';
+ el('calendar-review-status').hidden=false;el('calendar-review-status').textContent='Design preview only. These controls do not contact Google.';
+}

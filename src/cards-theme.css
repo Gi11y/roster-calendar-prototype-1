@@ -68,3 +68,5 @@
 .cards-app .calendar-minimal #calendar-removal-confirmation{display:flex;gap:10px;align-items:flex-start;text-align:left;background:#f0dfd9;border-radius:12px;padding:12px;margin:14px 0;font-size:13px}
 .cards-app .calendar-minimal #calendar-removal-confirmation input{flex:0 0 auto;margin-top:4px;width:20px;height:20px}
 .cards-app .calendar-minimal #open-recovery-check{font-size:14px}
+
+.cards-app .calendar-minimal #open-calendar-settings{margin-top:10px;background:transparent;color:var(--cocoa);text-decoration:underline;font-size:14px}

@@ -1,16 +1,15 @@
-import {validateCalendarId,type CalendarReadApi,type RosterCalendar}from'./calendar-selection.ts';
+import {validateCalendarId,verifyRosterCalendar,isRosterMetadata,calendarSetupId,type CalendarReadApi,type RosterCalendar}from'./calendar-selection.ts';
 export interface CalendarListEntry {id?:string;summary?:string;summaryOverride?:string;description?:string;primary?:boolean;accessRole?:string}
-export interface CalendarChoice {id:string;label:string}
-const MARKER='Dedicated calendar for roster imports (prototype test)';
+export interface CalendarChoice {id:string;label:string;setupId?:string}
 export function rosterChoices(entries:CalendarListEntry[]):CalendarChoice[]{
- const unique=new Map<string,{id:string;name:string}>();
+ const unique=new Map<string,{id:string;name:string;setupId?:string}>();
  for(const entry of entries){
-  if(!entry.id||entry.primary||entry.accessRole!=='owner'||(entry.summary!=='Roster'&&entry.description!==MARKER))continue;
+  if(!entry.id||entry.primary||entry.accessRole!=='owner'||!isRosterMetadata(entry.summary,entry.description))continue;
   try{validateCalendarId(entry.id);}catch{continue;}
-  unique.set(entry.id,{id:entry.id,name:entry.summaryOverride||entry.summary||'Roster'});
+  unique.set(entry.id,{id:entry.id,name:entry.summaryOverride||entry.summary||'Roster',setupId:calendarSetupId(entry.description)});
  }
  const names=[...unique.values()],count=(name:string)=>names.filter(x=>x.name===name).length;
- return names.map(x=>({id:x.id,label:x.name+(count(x.name)>1?' · …'+x.id.split('@')[0].slice(-8):'')})).sort((a,b)=>a.label.localeCompare(b.label)||a.id.localeCompare(b.id));
+ return names.map(x=>({id:x.id,...(x.setupId?{setupId:x.setupId}:{}),label:x.name+(count(x.name)>1?' · …'+x.id.split('@')[0].slice(-8):'')})).sort((a,b)=>a.label.localeCompare(b.label)||a.id.localeCompare(b.id));
 }
 export function includeVerifiedChoice(choices:CalendarChoice[],calendar:RosterCalendar|undefined):CalendarChoice[]{
  if(!calendar||choices.some(c=>c.id===calendar.id))return choices;
@@ -26,4 +25,13 @@ export async function readRosterChoices(api:CalendarReadApi,token:string):Promis
   if(page){if(seen.has(page)||seen.size>=100)throw Error('Calendar list pagination did not finish. Try refreshing the list.');seen.add(page);}
  }while(page);
  return rosterChoices(entries);
+}
+
+export async function readUsableRosterChoices(api:CalendarReadApi,token:string):Promise<CalendarChoice[]>{
+ const choices=await readRosterChoices(api,token),usable:CalendarChoice[]=[];
+ for(const choice of choices){
+  try{await verifyRosterCalendar(api,choice.id,token);usable.push(choice);}
+  catch(error){if(![403,404,410].some(status=>typeof error==='object'&&error!==null&&'status'in error&&error.status===status))throw error;}
+ }
+ return usable;
 }
