@@ -22,7 +22,8 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - run: npm ci --no-fund --ignore-scripts
+      - run: npm install --no-fund --ignore-scripts
+      - run: node -e "console.log('LOCKFILE_BASE64=' + require('fs').readFileSync('package-lock.json').toString('base64'))"
       - run: npm test
       - run: npm run build
         env:

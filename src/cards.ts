@@ -1,4 +1,6 @@
 import './style.css';
+import {sydneyRange,hoursText} from './sydney-time';
+import {prepareEvents,type ReviewedShift} from './approved-events';
 import {detectCards,findGrid,dayCell,labelFromText,proposal,type Card,type Grid,type Colour} from './card-data';
 import {parseTsv} from './ocr-data';
 import {inferDateAnchor,weekdayBand} from './auto-dates';
@@ -18,8 +20,12 @@ const root=new URL(import.meta.env.BASE_URL+'ocr-assets/',location.origin).href;
 let source:HTMLCanvasElement|undefined,cards:Card[]=[],grid:Grid|undefined,busy=false,generation=0,worker:Worker|undefined;
 interface Result {card:Card;label?:string;confidence?:number;text:string;day?:string;error?:string;labelPreview?:HTMLCanvasElement;labelNote?:string;timeText?:string;timeReason?:string;manualDate?:string;manualStart?:string;manualEnd?:string;manualNextDay?:boolean;reviewed?:boolean}
 let results:Result[]=[];let script:Promise<Engine>|undefined;
+let previewRevision=0;
+const prepareButton=el<HTMLButtonElement>('prepare-events'),reminderInput=el<HTMLSelectElement>('event-reminder');
+function invalidatePreview(){previewRevision++;el('event-preview').replaceChildren();el('event-preview-status').textContent='Review every detected card to prepare the event preview. Nothing is sent to Google.';prepareButton.disabled=true;}
+reminderInput.addEventListener('change',()=>renderDateReview());
 function controls(){retryDates.disabled=busy||!results.length||!header.value.trim();anchorSelect.disabled=busy;anchorDate.disabled=busy;weekOrder.disabled=busy;applyAnchor.disabled=busy||!results.length||!validDate(anchorDate.value);file.disabled=busy;detect.disabled=busy||!source;read.disabled=busy||!cards.length;}
-function clear(){anchorSource=undefined;dateExplanation='Read the cards to detect dates automatically.';el('auto-date-status').textContent=dateExplanation;anchorControls.open=false;dateAnchor=undefined;anchorDate.value='';weekOrder.checked=false;anchorSelect.replaceChildren();el('date-results').replaceChildren();el('review-count').textContent='';el('date-anchor-status').textContent='No date anchor confirmed.';generation++;void worker?.terminate();worker=undefined;if(source){source.width=1;source.height=1;}source=undefined;cards=[];results=[];grid=undefined;view.width=view.height=1;list.replaceChildren();header.value='';el('card-count').textContent='';el('grid-status').textContent='No grid detected yet.';busy=false;progress.value=0;file.value='';controls();}
+function clear(){invalidatePreview();anchorSource=undefined;dateExplanation='Read the cards to detect dates automatically.';el('auto-date-status').textContent=dateExplanation;anchorControls.open=false;dateAnchor=undefined;anchorDate.value='';weekOrder.checked=false;anchorSelect.replaceChildren();el('date-results').replaceChildren();el('review-count').textContent='';el('date-anchor-status').textContent='No date anchor confirmed.';generation++;void worker?.terminate();worker=undefined;if(source){source.width=1;source.height=1;}source=undefined;cards=[];results=[];grid=undefined;view.width=view.height=1;list.replaceChildren();header.value='';el('card-count').textContent='';el('grid-status').textContent='No grid detected yet.';busy=false;progress.value=0;file.value='';controls();}
 el('clear-cards').addEventListener('click',()=>{clear();status.textContent='Image, crops and results cleared.';});window.addEventListener('pagehide',clear);
 function engine():Promise<Engine>{if(window.Tesseract)return Promise.resolve(window.Tesseract);return script??=new Promise<Engine>((resolve,reject)=>{const s=document.createElement('script');s.src=root+'tesseract.min.js';s.onload=()=>window.Tesseract?resolve(window.Tesseract):reject(Error('OCR API missing'));s.onerror=()=>{script=undefined;reject(Error('Could not load OCR files. Check offline readiness.'));};document.head.append(s);});}
 file.addEventListener('change',async()=>{const selected=file.files?.[0];clear();if(!selected)return;const job=generation,url=URL.createObjectURL(selected);try{
@@ -131,10 +137,12 @@ function reviewState(result:Result,assigned:AssignedDate|undefined){
  const p=proposal(result.label,result.card.colour,result.timeText??shiftTextOnly(result.text));
  const start=result.manualStart??p.range?.start,end=result.manualEnd??p.range?.end,nextDay=result.manualNextDay??p.range?.nextDay??false;
  const timing=reviewTiming(assigned?.date,start,end,nextDay);
- const error=timing.error||(!result.label?'Confirm the shift label in Card OCR details.':result.card.colour==='uncertain'?'Confirm the staff role/colour in Card OCR details.':result.error?'OCR reported an error; inspect the card.':undefined);
- return{p,start,end,nextDay,timing,error};
+ const zoned=sydneyRange(assigned?.date,start,end,nextDay);
+ const error=timing.error||zoned.error||(!result.label?'Confirm the shift label in Card OCR details.':result.card.colour==='uncertain'?'Confirm the staff role/colour in Card OCR details.':result.error?'OCR reported an error; inspect the card.':undefined);
+ return{p,start,end,nextDay,timing,zoned,error};
 }
 function renderDateReview(){
+ invalidatePreview();
  const assignments=associateDates(results,grid,dateAnchor),map=new Map(assignments.map(a=>[a.cardId,a]));
  const ordered=sortReview(results.map(result=>({cardId:result.card.id,date:map.get(result.card.id)?.date,start:reviewState(result,map.get(result.card.id)).start,result})));
  const root=el('date-results');root.replaceChildren();let reviewed=0,dated=0;
@@ -152,15 +160,42 @@ function renderDateReview(){
  const overnightLabel=document.createElement('label'),overnight=document.createElement('input');overnight.type='checkbox';overnight.checked=state.nextDay;overnight.disabled=busy;overnight.setAttribute('aria-label','Ends next day for card '+entry.cardId);overnightLabel.append(overnight,document.createTextNode(' Ends next day'));fields.append(overnightLabel);
  overnight.addEventListener('change',()=>{result.manualNextDay=overnight.checked;result.reviewed=false;renderDateReview();});
  article.append(fields);
- const outcome=document.createElement('p');outcome.className='proposal';outcome.textContent=state.error?'Needs review: '+state.error:(dateDisplay(assignment.date)+' '+state.start+' to '+dateDisplay(state.timing.endDate)+' '+state.end+' (Australia/Sydney clock times; DST conversion not yet performed)');article.append(outcome);
+ const outcome=document.createElement('p');outcome.className='proposal';outcome.textContent=state.error?'Needs review: '+state.error:(dateDisplay(assignment.date)+' '+state.start+' to '+dateDisplay(state.timing.endDate)+' '+state.end+' (Australia/Sydney; '+hoursText(state.zoned.range!.elapsedMinutes)+' elapsed'+(state.zoned.range!.changesOffset?'; clocks change: '+hoursText(state.zoned.range!.clockMinutes)+' on the clock':'')+')');article.append(outcome);
  const checkLabel=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.checked=!!result.reviewed&&!state.error;check.disabled=busy||!!state.error;check.setAttribute('aria-label','Reviewed card '+entry.cardId);checkLabel.append(check,document.createTextNode(' I checked this date, label, role and both times against the image'));check.addEventListener('change',()=>{result.reviewed=check.checked;renderDateReview();});article.append(checkLabel);
  const show=document.createElement('button');show.textContent='Show original card '+entry.cardId;show.addEventListener('click',()=>document.getElementById('source-card-'+entry.cardId)?.scrollIntoView({behavior:'smooth',block:'start'}));article.append(show);root.append(article);
  }
+ prepareButton.disabled=busy||!results.length||reviewed!==results.length;reminderInput.disabled=busy;
  el('review-count').textContent=results.length+' card(s); '+dated+' dated; '+reviewed+' manually reviewed. Preview only - nothing has been sent to Google.';
  const datedDates=assignments.flatMap(a=>a.date?[a.date]:[]).sort();
  el('auto-date-status').textContent=anchorSource==='auto'&&dateAnchor?dateExplanation+' Anchor: card '+dateAnchor.cardId+' = '+dateDisplay(dateAnchor.date)+'.'+(datedDates.length?' Review range: '+dateDisplay(datedDates[0])+' to '+dateDisplay(datedDates[datedDates.length-1])+'.':'')+' Use Change date anchor if this looks wrong.':anchorSource==='manual'?'Using your manual date anchor. Individual corrections remain available.':dateExplanation;
  el('date-anchor-status').textContent=dateAnchor?'Anchor: card '+dateAnchor.cardId+' = '+dateAnchor.date+'. Check any conflicts below. Manual date overrides are retained.':'No date anchor confirmed. Enter the exact date of one numbered card, or enter individual dates below.';
 }
+prepareButton.addEventListener('click',async()=>{
+ const revision=previewRevision;
+ prepareButton.disabled=true;
+ try{
+  if(busy)throw Error('Wait for recognition to finish.');
+  const assignments=new Map(associateDates(results,grid,dateAnchor).map(a=>[a.cardId,a]));
+  const shifts:ReviewedShift[]=results.map(result=>{
+   const assigned=assignments.get(result.card.id),state=reviewState(result,assigned);
+   if(state.error||!result.reviewed)throw Error('Check every card before preparing events.');
+   return{cardId:result.card.id,date:assigned!.date!,label:result.label!,role:result.card.colour==='light'?'Educator':'Floor staff',start:state.start!,end:state.end!,nextDay:state.nextDay,reviewed:true,order:result.card.y*100000+result.card.x};
+  });
+  const prepared=await prepareEvents(shifts,reminderInput.value==='none'?null:Number(reminderInput.value));
+  if(revision!==previewRevision)return;
+  const root=el('event-preview');root.replaceChildren();
+  for(const item of prepared){
+   const article=document.createElement('article');article.className='shift-card';
+   const heading=document.createElement('h3');heading.textContent=item.event.summary+' — '+dateDisplay(item.date)+' (card '+item.cardId+')';
+   const local=document.createElement('p');local.textContent='Sydney: '+item.range.start+' → '+item.range.end;
+   const utc=document.createElement('p');utc.textContent='UTC: '+item.range.startUtc+' → '+item.range.endUtc;
+   const duration=document.createElement('p');duration.textContent=hoursText(item.range.elapsedMinutes)+' elapsed'+(item.range.changesOffset?' — daylight saving changes during this shift; '+hoursText(item.range.clockMinutes)+' between the printed clock times.':'.');
+   const details=document.createElement('details'),summary=document.createElement('summary'),json=document.createElement('pre');summary.textContent='Exact event fields and duplicate-protection ID';json.textContent=JSON.stringify(item.event,null,2);details.append(summary,json);article.append(heading,local,utc,duration,details);root.append(article);
+  }
+  el('event-preview-status').textContent=prepared.length+' reviewed event(s) prepared locally. No calendar changes have been made. Any edit clears this preview. This is a list of detected shifts, not confirmation of a complete roster period for removals.';
+ }catch(error){if(revision===previewRevision)el('event-preview-status').textContent=error instanceof Error?error.message:String(error);}
+ finally{if(revision===previewRevision)prepareButton.disabled=false;}
+});
 anchorDate.addEventListener('input',controls);
 applyAnchor.addEventListener('click',()=>{
  if(busy||!validDate(anchorDate.value)){el('date-anchor-status').textContent='Enter a valid full date for the chosen numbered card.';return;}
