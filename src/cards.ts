@@ -131,7 +131,7 @@ function renderDateReview(){
  for(const entry of ordered){const result=entry.result,assignment=map.get(entry.cardId)!,state=reviewState(result,assignment);if(assignment.date)dated++;if(result.reviewed&&!state.error)reviewed++;
  const article=document.createElement('article');article.className='shift-card date-row';
  const heading=document.createElement('h3');heading.textContent=dateDisplay(assignment.date)+' - Card '+entry.cardId+' - '+(result.card.colour==='light'?'Educator':result.card.colour==='dark'?'Floor staff':'Role unclear')+' '+(result.label||'?');article.append(heading);
- const evidence=document.createElement('p');evidence.className='small';evidence.textContent=assignment.basis+(assignment.warning?'. '+assignment.warning:'')+'. '+state.p.basis;article.append(evidence);
+ const evidence=document.createElement('p');evidence.className='small';const timeBasis=result.manualStart!==undefined||result.manualEnd!==undefined||result.manualNextDay!==undefined?'Times manually edited - compare with original image':state.p.basis;evidence.textContent=assignment.basis+(assignment.warning?'. '+assignment.warning:'')+'. '+timeBasis;article.append(evidence);
  const fields=document.createElement('div');fields.className='date-fields';
  const dateLabel=document.createElement('label');dateLabel.textContent='Shift date ';const date=document.createElement('input');date.type='date';date.value=assignment.date||'';date.disabled=busy;date.setAttribute('aria-label','Date for card '+entry.cardId);dateLabel.append(date);fields.append(dateLabel);
  date.addEventListener('change',()=>{result.manualDate=date.value;result.reviewed=false;renderDateReview();});

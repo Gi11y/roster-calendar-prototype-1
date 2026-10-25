@@ -31,7 +31,7 @@ export function associateDates(items:DateCard[],grid:Grid|undefined,anchor:DateA
   if(item.card.id===anchor.cardId)return{cardId:item.card.id,date:anchor.date,basis:'User-confirmed anchor card'};
   const target=position(item.card,grid);
   if(!origin||!target)return{cardId:item.card.id,basis:'Needs date review',warning:'Grid row or column is uncertain. Enter this date manually.'};
-  const candidate=addDays(anchor.date,(target.row-origin.row)*7+target.column-origin.column);
+  let candidate:string;try{candidate=addDays(anchor.date,(target.row-origin.row)*7+target.column-origin.column);}catch{return{cardId:item.card.id,basis:'Needs date review',warning:'The proposed date is outside the supported range.'};}
   if(item.day&&Number(item.day)!==Number(candidate.slice(-2)))return{cardId:item.card.id,candidate,basis:'Date conflict - check image',warning:'Grid proposes '+candidate+' but OCR read day '+item.day+'. No date was assigned.'};
   return{cardId:item.card.id,date:candidate,basis:'Inferred from confirmed anchor and grid - review'+(item.day?' (day OCR agrees)':' (day OCR unavailable)')};
  });
@@ -41,6 +41,6 @@ export function reviewTiming(date:string|undefined,start:string|undefined,end:st
  if(!validDate(date))return{error:'Confirm the date.'};if(!validClock(start)||!validClock(end))return{error:'Enter valid start and end times.'};
  const minutes=(s:string)=>Number(s.slice(0,2))*60+Number(s.slice(3)),duration=minutes(end)-minutes(start)+(nextDay?1440:0);
  if(duration<=0)return{error:'End must be after start. Check overnight or identical times.'};if(duration>16*60)return{error:'Duration exceeds 16 clock hours. Check the times and overnight setting.'};
- return{endDate:addDays(date,nextDay?1:0)};
+ try{return{endDate:addDays(date,nextDay?1:0)};}catch{return{error:'The end date is outside the supported range.'};}
 }
 export function sortReview<T extends {cardId:number;date?:string;start?:string}>(items:T[]):T[]{return items.slice().sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999')||(a.start||'99:99').localeCompare(b.start||'99:99')||a.cardId-b.cardId);}
