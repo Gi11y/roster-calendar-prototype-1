@@ -20,3 +20,16 @@ test('repeated identical readings are one range; conflicting passes stay ambiguo
 test('educator role does not imply 12h, but printed times take precedence',()=>{assert.equal(proposal('N','light','N').range.end,'07:00');assert.equal(proposal('A','light','A 08:00 - 16:00').range.end,'16:00');assert.equal(proposal('A','light','A').range.end,'15:00');});
 
 test('a tightly cropped single card is not rejected for spanning most image width',()=>{const x=image();x.rectangle(4,4,192,170,[160,200,0]);assert.equal(detectCards(x.d,x.w,x.h).length,1);});
+
+function tallFinalRow(spanLeave=false,visibleBottom=true){const w=400,h=520,d=new Uint8ClampedArray(w*h*4).fill(255);const put=(x,y,rgb)=>d.set([...rgb,255],(y*w+x)*4);
+ const borderEnd=visibleBottom?420:315;
+ for(let k=0;k<8;k++)for(let y=50;y<=borderEnd;y++)put(20+k*45,y,[225,225,225]);
+ for(const y of [50,120,190,260,...(visibleBottom?[420]:[])])for(let x=20;x<=335;x++)put(x,y,[225,225,225]);
+ for(const [left,top]of[[25,65],[25,280],[115,280],[205,280]])for(let y=top;y<top+35;y++)for(let x=left;x<left+30;x++)put(x,y,[35,185,35]);
+ if(spanLeave)for(let y=340;y<370;y++)for(let x=20;x<=335;x++)put(x,y,[180,180,150]);
+ for(let x=20;x<=335;x++)put(x,505,[225,225,225]);
+ return{d,w,h,cards:detectCards(d,w,h)};
+}
+test('tall final date row is completed from visible vertical borders',()=>{const p=tallFinalRow();const g=findGrid(p.d,p.w,p.h,p.cards);assert(g.rows.includes(420));for(const card of p.cards.slice(1))assert.equal(dayCell(card,g).bottom,420);});
+test('a leave bar can interrupt borders without truncating the last row',()=>{const p=tallFinalRow(true);const g=findGrid(p.d,p.w,p.h,p.cards);assert(g.rows.includes(420));assert.equal(g.rows.includes(505),false);});
+test('a missing final border is not invented from a distant footer line',()=>{const p=tallFinalRow(false,false);const g=findGrid(p.d,p.w,p.h,p.cards);assert.equal(g.rows.includes(420),false);assert.equal(g.rows.includes(505),false);assert.equal(dayCell(p.cards[1],g).bottom,undefined);});

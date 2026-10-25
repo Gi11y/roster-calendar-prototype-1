@@ -37,9 +37,21 @@ export function findGrid(data:Uint8ClampedArray,width:number,height:number,cards
   if(new Set(candidate).size===8&&error<best&&cards.every(c=>c.x>=candidate[0]-4&&c.x+c.width<=candidate[7]+4)){best=error;columns=candidate;}
  }
  if(!columns)return;
+ // Follow visible vertical borders below the last green card. Leave/secondary
+ // entries can make the final date row much taller than the green card itself.
+ const cellWidth=(columns[7]-columns[0])/7,lastCardBottom=Math.max(...cards.map(c=>c.y+c.height));
+ let lastBorderY=Math.min(height-1,Math.floor(lastCardBottom));
+ const allowedGap=Math.max(24,Math.ceil(cellWidth*1.25));
+ for(let y=lastBorderY;y<height;y++){
+  let supported=0;
+  for(const column of columns){let present=false;for(let dx=-2;dx<=2;dx++){const x=Math.round(column)+dx;if(x>=0&&x<width&&grey(data,(y*width+x)*4)){present=true;break;}}if(present)supported++;}
+  if(supported>=5)lastBorderY=y;
+  if(y-lastBorderY>allowedGap)break;
+ }
+ const rowBottom=Math.min(height,Math.max(bottom,lastBorderY+3));
  const rowscore=new Array<number>(height).fill(0),left=columns[0],right=columns[7];
- for(let y=top;y<bottom;y++)for(let x=left;x<=right;x++)if(grey(data,(y*width+x)*4))rowscore[y]++;
- return {columns,rows:peaks(rowscore,(right-left)*.52).filter(y=>y>=top&&y<=bottom)};
+ for(let y=top;y<rowBottom;y++)for(let x=left;x<=right;x++)if(grey(data,(y*width+x)*4))rowscore[y]++;
+ return {columns,rows:peaks(rowscore,(right-left)*.52).filter(y=>y>=top&&y<=rowBottom)};
 }
 export function dayCell(card:Card,grid:Grid|undefined):{column:number;top?:number;bottom?:number}|undefined{
  if(!grid)return;const cx=card.x+card.width/2;const column=grid.columns.findIndex((x,i)=>i<7&&cx>=x&&cx<grid.columns[i+1]);if(column<0)return;
