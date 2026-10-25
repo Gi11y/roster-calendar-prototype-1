@@ -10,3 +10,6 @@ test('N10 and a strong single letter are retained',()=>{assert.equal(chooseLabel
 
 test('white night-shift glyphs are isolated and marked for inversion',()=>{const p=sample();for(let y=3;y<12;y++)for(let x=4;x<11;x++)p.d.set([245,245,245,255],(y*p.w+x)*4);const r=isolateLabel(p.d,p.w,p.h,[35,185,35]);assert(r);assert.equal(r.lightInk,true);});
 test('white rounded-corner fragments do not become a night label',()=>{const p=sample();for(let y=0;y<6;y++)for(let x=0;x<3;x++)p.d.set([250,250,250,255],(y*p.w+x)*4);assert.equal(isolateLabel(p.d,p.w,p.h,[35,185,35]),undefined);});
+
+import {labelFromText} from '../src/card-data.ts';
+test('lowercase OCR letters normalise without accepting duplicate glyphs',()=>{assert.equal(labelFromText('p'),'P');assert.equal(labelFromText('a'),'A');assert.equal(labelFromText('n10'),'N10');assert.equal(labelFromText('Pp'),undefined);});

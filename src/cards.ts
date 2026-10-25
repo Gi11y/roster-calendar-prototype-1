@@ -67,7 +67,7 @@ read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;c
  if(frames){
   result.labelPreview=frames.binary;
   for(const [name,canvas,mode] of [['isolated contrast',frames.normal,'7'],['isolated binary',frames.binary,frames.multiple?'7':'10']] as const){
-   await current.setParameters({tessedit_pageseg_mode:mode,tessedit_char_whitelist:'APN10',user_defined_dpi:'300'});
+   await current.setParameters({tessedit_pageseg_mode:mode,tessedit_char_whitelist:'APNapn10',user_defined_dpi:'300'});
    const result=await current.recognize(canvas,{}, {text:true,tsv:true});if(job!==generation)return;
    const tokens=parseTsv(result.data.tsv||'');readings.push({label:labelFromText(result.data.text),confidence:tokens.length?Math.min(...tokens.map(w=>w.confidence)):0,source:name});
   }
