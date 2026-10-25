@@ -106,3 +106,7 @@
 .cards-app .swap-app .calendar-operation progress{width:100%;display:block}
 .cards-app .swap-app .calendar-operation-detail{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--muted)}
 .cards-app .swap-app [data-progress-elapsed]{white-space:nowrap}
+
+.cards-app .swap-sheet .swap-search-status{font-size:14px;margin:14px 0 0;padding:12px;border-radius:10px;background:#eee5dd;color:var(--ink)}
+.cards-app .swap-sheet .swap-search-status[data-state=error]{background:#f0dfd9;border:1px solid #b58a78}
+.cards-app .swap-sheet .swap-search-status[data-state=empty]{border:1px solid var(--line)}

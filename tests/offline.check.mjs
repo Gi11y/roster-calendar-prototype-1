@@ -56,5 +56,5 @@ console.log('PASS: online HTML bypasses stale caches, offline HTML retains its c
 
 assert(stored.includes(root+'swap.html'));
 assert(readFileSync('dist/swap.html','utf8').includes('Swap a shift'));
-assert(html.includes(base+'swap.html?v=0.23'));
+assert(html.includes(base+'swap.html?v=0.23.1'));
 console.log('PASS: shift swap page and landing link are included in the offline build.');

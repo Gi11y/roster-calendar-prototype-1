@@ -16,7 +16,7 @@ async function get(api:CalendarReadApi,path:string,token:string,id:string):Promi
  catch(error){if(isStatus(error,404))return undefined;if(isStatus(error,410))return{id,status:'cancelled'};throw error;}
 }
 export async function listSwapShifts(api:CalendarReadApi,calendarId:string,token:string,start:string,end:string,progress:(p:CalendarProgress)=>void=()=>{}):Promise<RemoteEvent[]>{
- await verifyRosterCalendar(api,calendarId,token);const bounds=coverageBounds({start,end,confirmed:true}),path='/calendars/'+encodeURIComponent(calendarId)+'/events',all=new Map<string,RemoteEvent>(),seen=new Set<string>();let page:string|undefined,pages=0;
+ const bounds=coverageBounds({start,end,confirmed:true});await verifyRosterCalendar(api,calendarId,token);const path='/calendars/'+encodeURIComponent(calendarId)+'/events',all=new Map<string,RemoteEvent>(),seen=new Set<string>();let page:string|undefined,pages=0;
  progress({phase:'listing',completed:0});
  do{const q=new URLSearchParams({...bounds,singleEvents:'false',showDeleted:'false',maxResults:'2500',privateExtendedProperty:'rosterImporter='+OWNER_MARKER});if(page)q.set('pageToken',page);
  const result=await api<{items?:RemoteEvent[];nextPageToken?:string}>(path+'?'+q,token);for(const e of result.items||[])if(await swappable(e))all.set(e.id,e);

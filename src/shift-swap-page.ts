@@ -1,3 +1,4 @@
+import{swapRangeError,shiftSearchResult}from'./shift-search-feedback';
 import './style.css';import './cards-theme.css';
 import{DateTime}from'luxon';import{addDays}from'./date-review';import{calendarTime}from'./calendar-presentation';
 import{loadGoogleScript,tokenClient,scopeGranted,calendarListGranted,CALENDAR_AUTH_SCOPES,calendarApi,type TokenResponse}from'./google';
@@ -31,7 +32,8 @@ function refresh(){
  el('swap-cleanup').hidden=!probePending;el<HTMLButtonElement>('swap-cleanup').disabled=busy||!connected||probePending?.calendarId!==calendarId;
 }
 function renderChoices(){calendar.replaceChildren(new Option('Choose Roster calendar',''));for(const c of choices)calendar.add(new Option(c.label,c.id));}
-function resetShifts(){shifts=[];old.replaceChildren(new Option('Find and choose a shift',''));el('swap-old-detail').textContent='';invalidate();}
+function searchStatus(message:string,state='status'){const status=el('swap-search-status');status.textContent=message;status.dataset.state=state;status.hidden=!message;}
+function resetShifts(){searchStatus('');from.removeAttribute('aria-invalid');to.removeAttribute('aria-invalid');shifts=[];old.replaceChildren(new Option('Find and choose a shift',''));el('swap-old-detail').textContent='';invalidate();}
 function clearToken(){epoch++;token=undefined;deadline=0;clearTimeout(timer);calendarId=undefined;choices=[];recovery=undefined;renderChoices();resetShifts();progress.stop();refresh();}
 function requireToken(){if(!token||Date.now()>=deadline){clearToken();throw Error('Google connection expired. Reconnect, then review the change again.');}return token;}
 function apiFor(connection:number):CalendarReadApi{return async<T>(path:string,t:string,method='GET',body?:unknown,etag?:string):Promise<T>=>{
@@ -67,11 +69,21 @@ auth.addEventListener('click',async()=>{
 disconnect.addEventListener('click',()=>{clearToken();say('Disconnected.');});
 calendar.addEventListener('change',async()=>{if(busy||probePending)return;busy=true;refresh();try{await selectCalendar(calendar.value);say('Calendar selected. Find shifts to continue.');}catch(e){say(errorText(e));}finally{busy=false;refresh();}});
 load.addEventListener('click',async()=>{
- if(busy||!calendarId)return;busy=true;resetShifts();refresh();const connection=epoch;
- try{progress.start({phase:'listing',completed:0});shifts=await listSwapShifts(apiFor(connection),calendarId,requireToken(),from.value,to.value,p=>progress.update(p));
+ if(busy||!calendarId)return;
+ resetShifts();say('');
+ const error=swapRangeError(from.value,to.value);
+ if(error){searchStatus(error,'error');from.setAttribute('aria-invalid','true');to.setAttribute('aria-invalid','true');refresh();el('swap-search-status').scrollIntoView({block:'center'});return;}
+ busy=true;refresh();const connection=epoch,start=from.value,end=to.value;
+ searchStatus('Finding shifts…','loading');
+ try{
+  progress.start({phase:'listing',completed:0});shifts=await listSwapShifts(apiFor(connection),calendarId,requireToken(),start,end,p=>progress.update(p));
+  const result=shiftSearchResult(shifts.length,start,end);old.replaceChildren(new Option(result.placeholder,''));
   for(const shift of shifts){const when=calendarTime(shift);old.add(new Option(when.date+' · '+when.hours+' · '+shift.summary,shift.id));}
-  say(shifts.length?'Choose the shift you want to replace.':'No eligible roster shifts found in this period. Try another date range.');
- }catch(e){say(errorText(e));}finally{busy=false;progress.stop();refresh();}
+  searchStatus(result.message,shifts.length?'success':'empty');
+ }catch(e){
+  if(connection!==epoch||!calendarId)say(errorText(e));
+  else searchStatus('The search could not be completed. '+errorText(e)+' Try again.','error');
+ }finally{busy=false;progress.stop();refresh();if(calendarId)el('swap-search-status').scrollIntoView({block:'center'});}
 });
 old.addEventListener('change',()=>{
  invalidate();const selected=shifts.find(e=>e.id===old.value);
