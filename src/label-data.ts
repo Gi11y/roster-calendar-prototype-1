@@ -22,15 +22,13 @@ export function isolateLabel(data:Uint8ClampedArray,width:number,height:number,b
 export interface LabelReading {label?:string;confidence:number;source:string;rawText?:string;detail?:string}
 export function chooseLabel(readings:LabelReading[]):{label?:string;confidence?:number;reason:string}{
  const valid=readings.filter(r=>r.label&&['A','P','N','N10'].includes(r.label)&&r.confidence>=25);
- // A conservative retry can resolve a lone moderate OCR misread only when
- // two distinct sources strongly agree. Competing high scores still block.
- const highLabels=new Set(valid.filter(r=>r.confidence>=85).map(r=>r.label));
- if(highLabels.size===1){
-  const candidate=[...highLabels][0],support=valid.filter(r=>r.label===candidate&&r.confidence>=85);
-  const contrary=valid.filter(r=>r.label!==candidate);
-  if(new Set(support.map(r=>r.source)).size>=2&&contrary.length===1&&contrary[0].confidence<75)
-   return{label:candidate,confidence:Math.max(...support.map(r=>r.confidence)),reason:'Two strong independent readings agree; one moderate conflicting reading was rejected. Check the crop.'};
- }
+ // Resolve the known P-versus-moderate-A failure only with a closed P
+ // contour AND agreement from two separately segmented retry passes.
+ const contour=valid.find(r=>r.label==='P'&&r.confidence>=90&&r.source==='P glyph contour (upper loop and lower stem)');
+ const retryP=valid.filter(r=>r.label==='P'&&r.confidence>=70&&r.source.startsWith('retry '));
+ const contrary=valid.filter(r=>r.label!=='P');
+ if(contour&&new Set(retryP.map(r=>r.source)).size>=2&&contrary.length===1&&contrary[0].label==='A'&&contrary[0].confidence<75)
+  return{label:'P',confidence:contour.confidence,reason:'P loop/stem contour and two retry passes agree; one moderate A reading was rejected. Check the crop.'};
  const strong=new Set(valid.filter(r=>r.confidence>=60).map(r=>r.label));
  if(strong.size>1)return{reason:'Label readings disagree - review the enlarged crop.'};
  const groups=new Map<string,LabelReading[]>();for(const r of valid){const list=groups.get(r.label!)||[];list.push(r);groups.set(r.label!,list);}
