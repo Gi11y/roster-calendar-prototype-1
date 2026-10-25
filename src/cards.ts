@@ -1,6 +1,4 @@
 import './style.css';
-import {timeInk} from './time-image';
-import {printedLine,agreeFocusedTimes,normalizePrintedTime} from './printed-time';
 import './cards-theme.css';
 import {mountCalendarReview} from './calendar-review';
 import {sydneyRange,hoursText} from './sydney-time';
@@ -23,7 +21,7 @@ let anchorSource:'auto'|'manual'|undefined;let dateExplanation='Read the cards t
 const retryDates=el<HTMLButtonElement>('detect-dates'),anchorControls=el<HTMLDetailsElement>('anchor-controls');
 const root=new URL(import.meta.env.BASE_URL+'ocr-assets/',location.origin).href;
 let source:HTMLCanvasElement|undefined,cards:Card[]=[],grid:Grid|undefined,busy=false,generation=0,worker:Worker|undefined;
-interface Result {card:Card;label?:string;confidence?:number;text:string;day?:string;error?:string;labelPreview?:HTMLCanvasElement;labelNote?:string;timeText?:string;timeReason?:string;timeWarning?:string;timePreview?:HTMLCanvasElement;manualDate?:string;manualStart?:string;manualEnd?:string;manualNextDay?:boolean;reviewed?:boolean}
+interface Result {card:Card;label?:string;confidence?:number;text:string;day?:string;error?:string;labelPreview?:HTMLCanvasElement;labelNote?:string;timeText?:string;timeReason?:string;manualDate?:string;manualStart?:string;manualEnd?:string;manualNextDay?:boolean;reviewed?:boolean}
 type Phase='start'|'reading'|'review'|'calendar';
 let phase:Phase='start';const editingCards=new Set<number>();
 function showPhase(next:Phase,focus=false){phase=next;for(const [id,value] of [['start-screen','start'],['reading-screen','reading'],['date-review','review'],['calendar-screen','calendar']])el(id).hidden=next!==value;el('advanced-tools').hidden=next==='start'||next==='reading';if(focus)document.querySelector<HTMLElement>('#'+(next==='review'?'date-review':'calendar-screen')+' h1')?.focus({preventScroll:false});}
@@ -59,7 +57,7 @@ function crop(x:number,y:number,width:number,height:number,mode='original',scale
  if(mode==='threshold'){const pixels=ctx.getImageData(0,0,c.width,c.height),d=pixels.data;for(let i=0;i<d.length;i+=4){const v=.299*d[i]+.587*d[i+1]+.114*d[i+2]>=85?255:0;d[i]=d[i+1]=d[i+2]=v;}ctx.putImageData(pixels,0,0);}return c;
 }
 
-function labelFrames(card:Card):{normal:HTMLCanvasElement;binary:HTMLCanvasElement;mask:HTMLCanvasElement;lightInk:boolean;multiple:boolean;shape?:LabelReading;diagnostic:string;bottom:number}|undefined{
+function labelFrames(card:Card):{normal:HTMLCanvasElement;binary:HTMLCanvasElement;multiple:boolean;shape?:LabelReading;diagnostic:string;bottom:number}|undefined{
  const unit=Math.max(.65,Math.min(3,card.width/90));
  const region=crop(card.x+2*unit,card.y+2*unit,Math.min(45*unit,card.width-4*unit),Math.min(24*unit,Math.max(20*unit,card.height*.35)),'original',1),ctx=region.getContext('2d',{willReadFrequently:true})!,pixels=ctx.getImageData(0,0,region.width,region.height);
  const isolated=isolateLabel(pixels.data,region.width,region.height,card.rgb);if(!isolated)return;
@@ -67,8 +65,7 @@ function labelFrames(card:Card):{normal:HTMLCanvasElement;binary:HTMLCanvasEleme
  function frame(binary:boolean){const raw=document.createElement('canvas');raw.width=b.width;raw.height=b.height;const small=raw.getContext('2d')!,out=small.createImageData(b.width,b.height);
  for(let y=0;y<b.height;y++)for(let x=0;x<b.width;x++){const src=((b.y+y)*region.width+b.x+x)*4,dst=(y*b.width+x)*4;const lum=.299*pixels.data[src]+.587*pixels.data[src+1]+.114*pixels.data[src+2];const v=binary?(isolated!.lightInk?(lum>Math.min(245,bg+45)?0:255):(lum<bg*.74?0:255)):Math.max(0,Math.min(255,Math.round(isolated!.lightInk?255-(lum-bg)/(255-bg)*255:(lum-bg*.1)/(bg*.9)*255)));out.data[dst]=out.data[dst+1]=out.data[dst+2]=v;out.data[dst+3]=255;}
  small.putImageData(out,0,0);const canvas=document.createElement('canvas');canvas.width=b.width*8+32;canvas.height=b.height*8+32;const large=canvas.getContext('2d')!;large.fillStyle='#fff';large.fillRect(0,0,canvas.width,canvas.height);large.imageSmoothingEnabled=!binary;large.drawImage(raw,16,16,b.width*8,b.height*8);return canvas;}
- const exact=document.createElement('canvas');exact.width=b.width;exact.height=b.height;const ec=exact.getContext('2d')!,ed=ec.createImageData(b.width,b.height);for(let y=0;y<b.height;y++)for(let x=0;x<b.width;x++){const i=(y*b.width+x)*4,v=isolated.mask[(b.y+y)*region.width+b.x+x]?0:255;ed.data[i]=ed.data[i+1]=ed.data[i+2]=v;ed.data[i+3]=255;}ec.putImageData(ed,0,0);const mask=document.createElement('canvas');mask.width=b.width*5+24;mask.height=b.height*5+24;const mc=mask.getContext('2d')!;mc.fillStyle='#fff';mc.fillRect(0,0,mask.width,mask.height);mc.imageSmoothingEnabled=false;mc.drawImage(exact,12,12,b.width*5,b.height*5);
- return{normal:frame(false),binary:frame(true),mask,lightInk:isolated.lightInk,multiple:isolated.components>1,bottom:Math.floor(card.y+2*unit)+b.y+b.height-2,shape:pGlyphEvidence(isolated),diagnostic:pGlyphCheck(isolated).reason+' '+JSON.stringify(pGlyphCheck(isolated).metrics||{})};
+ return{normal:frame(false),binary:frame(true),multiple:isolated.components>1,bottom:Math.floor(card.y+2*unit)+b.y+b.height-2,shape:pGlyphEvidence(isolated),diagnostic:pGlyphCheck(isolated).reason+' '+JSON.stringify(pGlyphCheck(isolated).metrics||{})};
 }
 
 function render(){list.replaceChildren();for(const result of results){
@@ -83,10 +80,10 @@ function render(){list.replaceChildren();for(const result of results){
  const labelNote=document.createElement('p');labelNote.textContent=result.labelNote||'';section.append(labelNote);
  const note=document.createElement('p');if(result.confidence!==undefined)note.textContent='Label reading score: '+result.confidence.toFixed(1)+' (not a probability or guarantee).';section.append(note);
  const proposed=document.createElement('p');proposed.className='proposal';const update=()=>{card.colour=colour.value as Colour;result.label=label.value||undefined;const p=proposal(result.label,card.colour,result.timeText??shiftTextOnly(result.text));const role=card.colour==='light'?'Educator shift - ':card.colour==='dark'?'Floor staff - ':'';proposed.textContent=role+(p.range?p.range.start+' to '+p.range.end+(p.range.nextDay?' (+1 day)':'')+' - '+p.basis+(p.warning?'. '+p.warning:''):p.basis+': '+p.warning);};colour.addEventListener('change',()=>{result.reviewed=false;update();renderDateReview();});label.addEventListener('change',()=>{result.reviewed=false;update();renderDateReview();});update();section.append(proposed);
- const raw=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Recognition diagnostics (raw OCR and rejection reasons)';raw.open=!!result.text&&!result.label;raw.append(summary);const text=document.createElement('pre');text.textContent=result.error||result.text||'Not read yet.';raw.append(text);if(result.timePreview){result.timePreview.className='card-thumb';result.timePreview.setAttribute('aria-label','Focused time crop for card '+card.id);raw.append(result.timePreview);}section.append(raw);const back=document.createElement('a');back.href='#date-review';back.textContent='Back to chronological review';section.append(back);list.append(section);
+ const raw=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Recognition diagnostics (raw OCR and rejection reasons)';raw.open=!!result.text&&!result.label;raw.append(summary);const text=document.createElement('pre');text.textContent=result.error||result.text||'Not read yet.';raw.append(text);section.append(raw);const back=document.createElement('a');back.href='#date-review';back.textContent='Back to chronological review';section.append(back);list.append(section);
  }
  syncAnchorOptions();renderDateReview();}
-read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;showPhase('reading');flowMessage('');const job=++generation;busy=true;for(const r of results){r.reviewed=false;r.error=undefined;r.timeWarning=undefined;}controls();render();progress.value=0;status.textContent='Loading the on-device card reader...';let current:Worker|undefined;
+read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;showPhase('reading');flowMessage('');const readerStart=performance.now();const job=++generation;busy=true;for(const r of results){r.reviewed=false;r.error=undefined;}controls();render();progress.value=0;status.textContent='Loading the on-device card reader...';let current:Worker|undefined;
  try{const lib=await engine();if(job!==generation)return;current=await lib.createWorker('eng',1,{workerPath:root+'worker.min.js',corePath:root,langPath:root.replace(/\/$/,''),workerBlobURL:false,cacheMethod:'none',gzip:true});if(job!==generation){await current.terminate();return;}worker=current;
  const active=results.slice(0,40);
  for(let index=0;index<active.length;index++){if(job!==generation)return;const result=active[index],c=result.card;status.textContent='Reading card '+(index+1)+' of '+active.length+'...';progress.value=index/active.length;
@@ -102,49 +99,11 @@ read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;s
  }
  await current.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:'',preserve_interword_spaces:'1'});
  const full=await current.recognize(crop(c.x-2,c.y-2,c.width+4,c.height+4),{},{text:true,tsv:true});if(job!==generation)return;result.text=full.data.text;result.timeText=shiftTextOnly(full.data.text);
- let fullWords=parseTsv(full.data.tsv||'');readings.push({label:labelFromText(full.data.text),confidence:fullWords[0]?.confidence||0,source:'full card',rawText:full.data.text.trim().split(String.fromCharCode(10))[0],detail:!labelFromText(full.data.text)?'First line did not match a valid label':'Full-card candidate'});
- let decision=chooseLabel(readings);
- if(!decision.label&&frames){
-  for(const [name,canvas,mode] of [['retry raw line',frames.normal,'13'],['retry word',frames.binary,'8'],['retry exact glyph mask',frames.mask,frames.multiple?'8':'10']] as const){
-   await current.setParameters({tessedit_pageseg_mode:mode,tessedit_char_whitelist:'APN10',user_defined_dpi:'300'});
-   const retry=await current.recognize(canvas,{},{text:true,tsv:true});if(job!==generation)return;const tokens=parseTsv(retry.data.tsv||'');readings.push({label:labelFromText(retry.data.text),confidence:tokens.length?Math.min(...tokens.map(w=>w.confidence)):0,source:name,rawText:retry.data.text,detail:'Targeted retry for an uncertain label; not a guessed shift.'});
-  }
-  decision=chooseLabel(readings);
- }
-result.label=decision.label;result.confidence=decision.confidence;result.labelNote=decision.label==='P'&&frames?.shape?'P-shaped upper loop and lower stem support this label. Verify the enlarged crop.':decision.reason;
+ const fullWords=parseTsv(full.data.tsv||'');readings.push({label:labelFromText(full.data.text),confidence:fullWords[0]?.confidence||0,source:'full card',rawText:full.data.text.trim().split(String.fromCharCode(10))[0],detail:!labelFromText(full.data.text)?'First line did not match a valid label':'Full-card candidate'});
+ const decision=chooseLabel(readings);result.label=decision.label;result.confidence=decision.confidence;result.labelNote=decision.label==='P'&&frames?.shape?'P-shaped upper loop and lower stem support this label. Verify the enlarged crop.':decision.reason;
  result.text+='\nLabel readings: '+readings.map(r=>r.source+' = '+(r.label||'?')+' ('+r.confidence.toFixed(1)+'); raw '+JSON.stringify(r.rawText??'')+'; '+(r.detail||'')).join('\n');
  result.text+='\nGlyph isolation: '+(frames?frames.diagnostic:'No connected label crop found.');
 
- // Read the exact time line on white paper, with two focused confirmations.
- if(!explicitRange(result.timeText||'')){
-  const ink=crop(c.x-2,c.y-2,c.width+4,c.height+4,'original',3),ctx=ink.getContext('2d')!,pixels=ctx.getImageData(0,0,ink.width,ink.height);pixels.data.set(timeInk(pixels.data,c.rgb,frames?.lightInk));ctx.putImageData(pixels,0,0);
-  ctx.fillStyle='#fff';ctx.fillRect(0,0,ink.width,5);ctx.fillRect(0,ink.height-5,ink.width,5);ctx.fillRect(0,0,5,ink.height);ctx.fillRect(ink.width-5,0,5,ink.height);
-  await current.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:'',preserve_interword_spaces:'1',user_defined_dpi:'300'});
-  const timeCard=await current.recognize(ink,{},{text:true,tsv:true});if(job!==generation)return;
-  const safe=shiftTextOnly(timeCard.data.text),inkWords=parseTsv(timeCard.data.tsv||'');if(inkWords.length)fullWords=inkWords;
-  result.text+='\nHigh-contrast time-card OCR:\n'+timeCard.data.text;
-  const bottom=frames?(frames.bottom-(c.y-2))*3:0,line=printedLine(inkWords,bottom);
-  if(line){
-   const top=c.y-2+line.top/3,height=line.height/3;
-   const raw=crop(c.x+1,top,c.width-2,height,'original',6),mono=crop(c.x+1,top,c.width-2,height,'original',6);
-   const mx=mono.getContext('2d')!,mp=mx.getImageData(0,0,mono.width,mono.height);mp.data.set(timeInk(mp.data,c.rgb,frames?.lightInk));mx.putImageData(mp,0,0);result.timePreview=mono;
-   const reads:string[]=[];
-   for(const [name,canvas,mode]of[['focused original',raw,'7'],['focused ink',mono,'13']]as const){
-    const padded=document.createElement('canvas');padded.width=canvas.width+32;padded.height=canvas.height+32;const px=padded.getContext('2d')!;px.fillStyle='#fff';px.fillRect(0,0,padded.width,padded.height);px.drawImage(canvas,16,16);
-    await current.setParameters({tessedit_pageseg_mode:mode,tessedit_char_whitelist:'0123456789:.- ',user_defined_dpi:'300'});
-    const response=await current.recognize(padded,{},{text:true,tsv:true});if(job!==generation)return;reads.push(response.data.text);result.text+='\n'+name+': '+response.data.text;
-   }
-   let agreement=agreeFocusedTimes(reads);
-   if(!agreement.range){
-    const padded=document.createElement('canvas');padded.width=raw.width+32;padded.height=raw.height+32;const px=padded.getContext('2d')!;px.fillStyle='#fff';px.fillRect(0,0,padded.width,padded.height);px.drawImage(raw,16,16);
-    await current.setParameters({tessedit_pageseg_mode:'13',tessedit_char_whitelist:'0123456789:.- ',user_defined_dpi:'300'});
-    const response=await current.recognize(padded,{},{text:true,tsv:false});if(job!==generation)return;reads.push(response.data.text);result.text+='\nFocused raw-line retry: '+response.data.text;
-    agreement=agreeFocusedTimes(reads);
-   }
-   if(agreement.range)result.timeText=agreement.range.start+' - '+agreement.range.end;
-   else result.timeWarning=agreement.warning;
-  }else if(/\d{1,2}[:.°º]\d{2}|\d{4}\s*[-–—]\s*\d{4}/.test(safe))result.timeWarning='Printed time text was detected but its line was unclear. Enter both times after checking the screenshot.';
- }
  const unit=Math.max(.65,Math.min(3,c.width/90));
  const labelWord=fullWords.find(w=>labelFromText(w.text)&&w.bbox.y0<Math.max(90*unit,c.height));
  const labelBottom=frames?(frames.bottom-(c.y-2))*3:labelWord?.bbox.y1??60*unit;
@@ -175,7 +134,7 @@ result.label=decision.label;result.confidence=decision.confidence;result.labelNo
  if(job===generation)applyAutomaticDates(false);
  if(job===generation){progress.value=1;status.textContent='Finished reading '+active.length+' card(s). Review colour, label, printed times and date evidence. No calendar events created.'+(results.length>40?' Only the first 40 cards were read to limit memory/time.':'');}
  }catch(e){if(job===generation)status.textContent='Card OCR failed: '+String(e);}
- finally{if(current)await current.terminate().catch(()=>{});if(job===generation){worker=undefined;busy=false;controls();render();showPhase('review',true);}}
+ finally{if(current)await current.terminate().catch(()=>{});if(job===generation){worker=undefined;busy=false;controls();render();el('reader-metric').textContent='Baseline v0.9.1 · '+((performance.now()-readerStart)/1000).toFixed(1)+' seconds';showPhase('review',true);}}
 });
 
 function syncAnchorOptions(){
@@ -186,11 +145,10 @@ function syncAnchorOptions(){
 function dateDisplay(date:string|undefined){if(!validDate(date))return'Unassigned date';return new Intl.DateTimeFormat('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(date+'T00:00:00Z'));}
 function reviewState(result:Result,assigned:AssignedDate|undefined){
  const p=proposal(result.label,result.card.colour,result.timeText??shiftTextOnly(result.text));
- const unresolved=result.timeWarning&&!(validClock(result.manualStart)&&validClock(result.manualEnd));
- const start=result.manualStart??(unresolved?undefined:p.range?.start),end=result.manualEnd??(unresolved?undefined:p.range?.end),nextDay=result.manualNextDay??p.range?.nextDay??false;
+ const start=result.manualStart??p.range?.start,end=result.manualEnd??p.range?.end,nextDay=result.manualNextDay??p.range?.nextDay??false;
  const timing=reviewTiming(assigned?.date,start,end,nextDay);
  const zoned=sydneyRange(assigned?.date,start,end,nextDay);
- const error=(unresolved?result.timeWarning:undefined)||timing.error||zoned.error||(!result.label?'Confirm the shift label in Card OCR details.':result.card.colour==='uncertain'?'Confirm the staff role/colour in Card OCR details.':result.error?'OCR reported an error; inspect the card.':undefined);
+ const error=timing.error||zoned.error||(!result.label?'Confirm the shift label in Card OCR details.':result.card.colour==='uncertain'?'Confirm the staff role/colour in Card OCR details.':result.error?'OCR reported an error; inspect the card.':undefined);
  return{p,start,end,nextDay,timing,zoned,error};
 }
 function renderDateReview(){
@@ -207,7 +165,7 @@ function renderDateReview(){
  const heading=document.createElement('h3');heading.className='shift-date';heading.textContent=assignment.date?new Intl.DateTimeFormat('en-AU',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'}).format(new Date(assignment.date+'T00:00:00Z')):'Date needed';
  const hours=document.createElement('span');hours.className='shift-hours';hours.textContent=state.start&&state.end?state.start+'–'+state.end:'Check times';top.append(heading,hours);copy.append(top);
  const role=document.createElement('p');role.className='shift-role';const name=result.label==='A'?'Morning':result.label==='P'?'Afternoon':result.label==='N'||result.label==='N10'?'Night':'Shift type needed';role.textContent=name+' · '+(result.card.colour==='light'?'Educator':result.card.colour==='dark'?'Floor staff':'Role needed');copy.append(role);
- if(!result.reviewed&&!result.timeWarning&&state.p.range&&result.manualStart===undefined&&result.manualEnd===undefined&&state.p.basis.startsWith('Inferred')){const basis=document.createElement('p');basis.className='shift-overnight';basis.textContent='Default hours · check against screenshot';copy.append(basis);}
+ if(!result.reviewed&&state.p.range&&result.manualStart===undefined&&result.manualEnd===undefined&&state.p.basis.startsWith('Inferred')){const basis=document.createElement('p');basis.className='shift-overnight';basis.textContent='Default hours · check against screenshot';copy.append(basis);}
  if(state.nextDay){const overnight=document.createElement('p');overnight.className='shift-overnight';overnight.textContent='Ends next day';copy.append(overnight);}
  const checkLabel=document.createElement('label');checkLabel.className='round-confirm';const check=document.createElement('input');check.type='checkbox';check.checked=!!result.reviewed&&!state.error;check.disabled=busy||!!state.error;check.setAttribute('aria-label','Reviewed card '+entry.cardId);const mark=document.createElement('span');mark.className='checkmark';mark.setAttribute('aria-hidden','true');checkLabel.append(check,mark);
  check.addEventListener('change',()=>{result.reviewed=check.checked;renderDateReview();document.querySelector<HTMLInputElement>('[aria-label="Reviewed card '+entry.cardId+'"]')?.focus({preventScroll:true});});
