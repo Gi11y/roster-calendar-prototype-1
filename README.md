@@ -1,3 +1,15 @@
+## v0.20 — automatic roster cropping
+
+Choose screenshot now proposes a crop around the full seven-column calendar and its date heading. A short preview lets users Read roster, adjust four crop edges, reset the suggestion, or use the full image. Review your shifts includes Adjust screenshot crop, which clears approvals and rereads the new selection. No new account/setup step, external image service, dependency, or Google scope.
+
+Detection uses the existing on-device green-card/grid/weekday-band geometry at bounded resolution. It keeps all seven columns, blank days, leading leave rows, trailing row boundaries and generous header space. Unclear geometry, missing headings, isolated cards or outlying detected cards retain the full original image. Manual crops warn when detected cards fall outside. Cropping does not establish complete coverage for removals; that still requires the existing explicit confirmation.
+
+The cropped processing canvas is drawn from the decoded original image before the existing three-megapixel processing cap, preserving available detail. Images, previews and crop coordinates remain in memory and are released on clear/page exit. The OCR recognition loop, label/time rules, date inference and Google reconciliation logic are unchanged.
+
+Local geometry checks on the four supplied full screenshots retained all 40 detected cards: September 14/14 (24% area retained), August 10/10 (26%), October/November 2025 8/8 (27%), October/November 2026 8/8 (35%). This confirms card preservation and area reduction, not improved word/date accuracy. Unit tests cover full-grid/header margins, leave/blank rows, unsafe fallback, original-pixel mapping, manual bounds and blank images. Private screenshots/pixel files are never committed.
+
+Phone test: choose a full roster screenshot, inspect the proposed crop, check the date/month heading and all seven columns/shift cards, Read roster, then review dates/hours as usual. Check Adjust crop and Use full image before repeating. A single-card screenshot should retain its full image and need its date confirmed as before. Real Pixel/iPhone checks remain user device tests.
+
 ## v0.19 — create your Roster calendar in the main flow
 
 A new user reviews shifts and connects Google. If a successful calendar-list/access check finds no usable Roster calendar, the page offers Create my Roster calendar and Use an existing calendar. Creation makes one empty secondary Roster calendar in Australia/Sydney, verifies access, saves its ID, then shows Roster calendar ready and Check calendar. It never adds shifts automatically. Existing users retain their calendar selection and ordinary comparison flow. No new OAuth scopes, backend, tokens stored, OCR or hour defaults.

@@ -70,3 +70,11 @@
 .cards-app .calendar-minimal #open-recovery-check{font-size:14px}
 
 .cards-app .calendar-minimal #open-calendar-settings{margin-top:10px;background:transparent;color:var(--cocoa);text-decoration:underline;font-size:14px}
+
+.cards-app .crop-sheet{padding:22px;text-align:center}
+.cards-app #crop-note{font-size:14px;color:var(--muted);margin:0 0 16px}
+.cards-app #crop-preview{display:block;width:100%;height:auto;max-height:480px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:8px;margin:0 0 20px}
+.cards-app #crop-adjustments{text-align:left}
+.cards-app #crop-adjustments label{display:flex;justify-content:space-between;font-size:14px;margin:14px 0 4px}
+.cards-app #crop-adjustments input[type=range]{display:block;width:100%;min-height:44px;accent-color:var(--cocoa)}
+.cards-app #crop-choose-another,.cards-app #adjust-roster-crop{width:100%;margin-top:10px}

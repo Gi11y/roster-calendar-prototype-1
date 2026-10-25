@@ -1,3 +1,4 @@
+import {proposeRosterCrop,scaleCrop,clampCrop,excludedCards} from './roster-crop';
 import './style.css';
 import {timeInk} from './time-image';
 import {printedLine,agreeFocusedTimes,normalizePrintedTime} from './printed-time';
@@ -5,7 +6,7 @@ import './cards-theme.css';
 import {mountCalendarReview} from './calendar-review';
 import {sydneyRange,hoursText} from './sydney-time';
 import {prepareEvents,type ReviewedShift} from './approved-events';
-import {detectCards,findGrid,dayCell,labelFromText,proposal,explicitRange,type Card,type Grid,type Colour} from './card-data';
+import {detectCards,findGrid,dayCell,labelFromText,proposal,explicitRange,type Card,type Grid,type Colour,type Rect} from './card-data';
 import {parseTsv} from './ocr-data';
 import {inferDateAnchor,weekdayBand} from './auto-dates';
 import {associateDates,validDate,validClock,reviewTiming,sortReview,type DateAnchor,type AssignedDate} from './date-review';
@@ -22,11 +23,12 @@ let dateAnchor:DateAnchor|undefined;
 let anchorSource:'auto'|'manual'|undefined;let dateExplanation='Read the cards to detect dates automatically.';
 const retryDates=el<HTMLButtonElement>('detect-dates'),anchorControls=el<HTMLDetailsElement>('anchor-controls');
 const root=new URL(import.meta.env.BASE_URL+'ocr-assets/',location.origin).href;
+let originalImage:HTMLImageElement|undefined,cropRect:Rect|undefined,autoRect:Rect|undefined,sourceCards:Rect[]=[];
 let source:HTMLCanvasElement|undefined,cards:Card[]=[],grid:Grid|undefined,busy=false,generation=0,worker:Worker|undefined;
 interface Result {card:Card;label?:string;confidence?:number;text:string;day?:string;error?:string;labelPreview?:HTMLCanvasElement;labelNote?:string;timeText?:string;timeReason?:string;timeWarning?:string;timePreview?:HTMLCanvasElement;manualDate?:string;manualStart?:string;manualEnd?:string;manualNextDay?:boolean;reviewed?:boolean}
-type Phase='start'|'reading'|'review'|'calendar';
+type Phase='start'|'crop'|'reading'|'review'|'calendar';
 let phase:Phase='start';const editingCards=new Set<number>();
-function showPhase(next:Phase,focus=false){phase=next;for(const [id,value] of [['start-screen','start'],['reading-screen','reading'],['date-review','review'],['calendar-screen','calendar']])el(id).hidden=next!==value;el('advanced-tools').hidden=next==='start'||next==='reading';if(focus)document.querySelector<HTMLElement>('#'+(next==='review'?'date-review':'calendar-screen')+' h1')?.focus({preventScroll:false});}
+function showPhase(next:Phase,focus=false){phase=next;for(const [id,value] of [['start-screen','start'],['crop-screen','crop'],['reading-screen','reading'],['date-review','review'],['calendar-screen','calendar']])el(id).hidden=next!==value;el('advanced-tools').hidden=next==='start'||next==='crop'||next==='reading';if(focus)document.querySelector<HTMLElement>('#'+(next==='crop'?'crop-screen':next==='review'?'date-review':'calendar-screen')+' h1')?.focus({preventScroll:false});}
 function flowMessage(message:string){el('flow-message').textContent=message;el('flow-message').hidden=!message;}
 el('cancel-reading').addEventListener('click',()=>clear());
 el('change-screenshot').addEventListener('click',()=>file.click());
@@ -37,13 +39,65 @@ const prepareButton=el<HTMLButtonElement>('prepare-events'),reminderInput=el<HTM
 function invalidatePreview(){calendarReview.setEvents([]);previewRevision++;el('event-preview').replaceChildren();el('event-preview-status').textContent='Review every detected card to prepare the event preview. Nothing is sent to Google.';prepareButton.disabled=true;}
 reminderInput.addEventListener('change',()=>renderDateReview());
 function controls(){retryDates.disabled=busy||!results.length||!header.value.trim();anchorSelect.disabled=busy;anchorDate.disabled=busy;weekOrder.disabled=busy;applyAnchor.disabled=busy||!results.length||!validDate(anchorDate.value);file.disabled=busy;detect.disabled=busy||!source;read.disabled=busy||!cards.length;}
-function clear(){showPhase('start');editingCards.clear();flowMessage('');invalidatePreview();anchorSource=undefined;dateExplanation='Read the cards to detect dates automatically.';el('auto-date-status').textContent=dateExplanation;anchorControls.open=false;dateAnchor=undefined;anchorDate.value='';weekOrder.checked=false;anchorSelect.replaceChildren();el('date-results').replaceChildren();el('review-count').textContent='';el('date-anchor-status').textContent='No date anchor confirmed.';generation++;void worker?.terminate();worker=undefined;if(source){source.width=1;source.height=1;}source=undefined;cards=[];results=[];grid=undefined;view.width=view.height=1;list.replaceChildren();header.value='';el('card-count').textContent='';el('grid-status').textContent='No grid detected yet.';busy=false;progress.value=0;file.value='';controls();}
+function clear(){if(originalImage)originalImage.src='';originalImage=undefined;cropRect=undefined;autoRect=undefined;sourceCards=[];const preview=document.getElementById('crop-preview') as HTMLCanvasElement|null;if(preview)preview.width=preview.height=1;showPhase('start');editingCards.clear();flowMessage('');invalidatePreview();anchorSource=undefined;dateExplanation='Read the cards to detect dates automatically.';el('auto-date-status').textContent=dateExplanation;anchorControls.open=false;dateAnchor=undefined;anchorDate.value='';weekOrder.checked=false;anchorSelect.replaceChildren();el('date-results').replaceChildren();el('review-count').textContent='';el('date-anchor-status').textContent='No date anchor confirmed.';generation++;void worker?.terminate();worker=undefined;if(source){source.width=1;source.height=1;}source=undefined;cards=[];results=[];grid=undefined;view.width=view.height=1;list.replaceChildren();header.value='';el('card-count').textContent='';el('grid-status').textContent='No grid detected yet.';busy=false;progress.value=0;file.value='';controls();}
 el('clear-cards').addEventListener('click',()=>{clear();status.textContent='Image, crops and results cleared.';});window.addEventListener('pagehide',clear);
 function engine():Promise<Engine>{if(window.Tesseract)return Promise.resolve(window.Tesseract);return script??=new Promise<Engine>((resolve,reject)=>{const s=document.createElement('script');s.src=root+'tesseract.min.js';s.onload=()=>window.Tesseract?resolve(window.Tesseract):reject(Error('OCR API missing'));s.onerror=()=>{script=undefined;reject(Error('Could not load OCR files. Check offline readiness.'));};document.head.append(s);});}
-file.addEventListener('change',async()=>{const selected=file.files?.[0];clear();if(!selected)return;showPhase('reading');el('selected-filename').textContent=selected.name;status.textContent='Opening screenshot…';const job=generation,url=URL.createObjectURL(selected);try{
+const cropPreview=el<HTMLCanvasElement>('crop-preview');
+const cropEdges=['left','top','right','bottom']as const;
+function syncCropControls(){
+ if(!originalImage||!cropRect)return;
+ const image=originalImage,rect=cropRect;
+ for(const edge of cropEdges){
+  const field=el<HTMLInputElement>('crop-'+edge),horizontal=edge==='left'||edge==='right';
+  field.min='0';field.max=String(horizontal?image.naturalWidth:image.naturalHeight);
+  field.value=String(edge==='left'?rect.x:edge==='top'?rect.y:edge==='right'?rect.x+rect.width:rect.y+rect.height);
+ }
+ renderCrop();
+}
+function renderCrop(){
+ if(!originalImage||!cropRect)return;
+ const rect=cropRect,scale=Math.min(1,Math.sqrt(900_000/(rect.width*rect.height)));
+ cropPreview.width=Math.max(1,Math.round(rect.width*scale));cropPreview.height=Math.max(1,Math.round(rect.height*scale));
+ cropPreview.getContext('2d')!.drawImage(originalImage,rect.x,rect.y,rect.width,rect.height,0,0,cropPreview.width,cropPreview.height);
+ const excluded=excludedCards(rect,sourceCards);
+ el('crop-warning').hidden=!excluded;el('crop-warning').textContent=excluded+' detected '+(excluded===1?'card is':'cards are')+' outside this crop. Keep every shift you intend to import visible.';
+ for(const edge of cropEdges){
+  const input=el<HTMLInputElement>('crop-'+edge),total=edge==='left'||edge==='right'?originalImage.naturalWidth:originalImage.naturalHeight;
+  el('crop-'+edge+'-value').textContent=Math.round(Number(input.value)/total*100)+'%';
+ }
+}
+for(const edge of cropEdges)el('crop-'+edge).addEventListener('input',()=>{
+ if(!originalImage||!cropRect)return;
+ let {x,y,width,height}=cropRect;const value=Number(el<HTMLInputElement>('crop-'+edge).value),right=x+width,bottom=y+height;
+ if(edge==='left'){x=Math.min(value,right-1);width=right-x;}else if(edge==='top'){y=Math.min(value,bottom-1);height=bottom-y;}else if(edge==='right')width=Math.max(1,value-x);else height=Math.max(1,value-y);
+ cropRect=clampCrop({x,y,width,height},originalImage.naturalWidth,originalImage.naturalHeight);syncCropControls();
+});
+el('crop-full-image').addEventListener('click',()=>{if(!originalImage)return;cropRect={x:0,y:0,width:originalImage.naturalWidth,height:originalImage.naturalHeight};el('crop-note').textContent='Full image selected. Keep the date heading and every shift visible.';syncCropControls();});
+el('crop-auto').addEventListener('click',()=>{if(!autoRect)return;cropRect={...autoRect};el('crop-note').textContent='Suggested crop restored. Check the date heading and every shift.';syncCropControls();});
+el('crop-choose-another').addEventListener('click',()=>file.click());
+el('adjust-roster-crop').addEventListener('click',()=>{
+ if(busy||!originalImage||!cropRect)return;
+ invalidatePreview();results=[];cards=[];grid=undefined;dateAnchor=undefined;editingCards.clear();showPhase('crop',true);syncCropControls();
+});
+el('read-cropped-roster').addEventListener('click',()=>{
+ if(!originalImage||!cropRect||busy)return;
+ const rect=cropRect,scale=Math.min(1,Math.sqrt(3_000_000/(rect.width*rect.height)));
+ if(source)source.width=source.height=1;
+ source=document.createElement('canvas');source.width=Math.max(1,Math.round(rect.width*scale));source.height=Math.max(1,Math.round(rect.height*scale));
+ source.getContext('2d')!.drawImage(originalImage,rect.x,rect.y,rect.width,rect.height,0,0,source.width,source.height);
+ dateAnchor=undefined;anchorSource=undefined;anchorDate.value='';weekOrder.checked=false;header.value='';invalidatePreview();scan();
+ if(cards.length)read.click();else{showPhase('crop');el('crop-note').textContent='No shift cards found in this crop. Expand it or use the full image.';}
+});
+file.addEventListener('change',async()=>{const selected=file.files?.[0];clear();if(!selected)return;showPhase('reading');el('selected-filename').textContent=selected.name;status.textContent='Finding your roster…';const job=generation,url=URL.createObjectURL(selected);try{
  if(selected.size>20_000_000)throw Error('Use a file smaller than 20 MB.');const image=new Image();image.src=url;await image.decode();if(job!==generation)return;
- if(image.naturalWidth*image.naturalHeight>25_000_000)throw Error('Use an image under 25 megapixels.');const scale=Math.min(1,Math.sqrt(3_000_000/(image.naturalWidth*image.naturalHeight)));
- source=document.createElement('canvas');source.width=Math.round(image.naturalWidth*scale);source.height=Math.round(image.naturalHeight*scale);source.getContext('2d')!.drawImage(image,0,0,source.width,source.height);scan();if(cards.length)read.click();else{showPhase('start');flowMessage('No green shift cards were found. Try a clearer or more closely cropped screenshot.');}
+ if(image.naturalWidth*image.naturalHeight>25_000_000)throw Error('Use an image under 25 megapixels.');
+ const scale=Math.min(1,Math.sqrt(3_000_000/(image.naturalWidth*image.naturalHeight))),analysis=document.createElement('canvas');
+ analysis.width=Math.max(1,Math.round(image.naturalWidth*scale));analysis.height=Math.max(1,Math.round(image.naturalHeight*scale));
+ const context=analysis.getContext('2d',{willReadFrequently:true})!;context.drawImage(image,0,0,analysis.width,analysis.height);
+ const proposal=proposeRosterCrop(context.getImageData(0,0,analysis.width,analysis.height).data,analysis.width,analysis.height);
+ originalImage=image;cropRect=scaleCrop(proposal.rect,analysis.width,analysis.height,image.naturalWidth,image.naturalHeight);autoRect={...cropRect};
+ sourceCards=proposal.cards.map(card=>scaleCrop(card,analysis.width,analysis.height,image.naturalWidth,image.naturalHeight));
+ analysis.width=analysis.height=1;el('crop-note').textContent=proposal.reason;el<HTMLDetailsElement>('crop-adjustments').open=false;syncCropControls();showPhase('crop',true);
  }catch(e){if(job===generation){showPhase('start');flowMessage(String(e));}}finally{URL.revokeObjectURL(url);controls();}});
 function draw(){if(!source)return;view.width=source.width;view.height=source.height;const ctx=view.getContext('2d')!;ctx.drawImage(source,0,0);
  if(grid){ctx.strokeStyle='#146b9d';ctx.lineWidth=1;for(const x of grid.columns){ctx.beginPath();ctx.moveTo(x,Math.min(...cards.map(c=>c.y))-40);ctx.lineTo(x,Math.max(...grid.rows,...cards.map(c=>c.y+c.height))+3);ctx.stroke();}for(const y of grid.rows){ctx.beginPath();ctx.moveTo(grid.columns[0],y);ctx.lineTo(grid.columns[7],y);ctx.stroke();}}
