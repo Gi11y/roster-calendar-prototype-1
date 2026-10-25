@@ -126,43 +126,20 @@ result.label=decision.label;result.confidence=decision.confidence;result.labelNo
   const bottom=frames?(frames.bottom-(c.y-2))*3:0,line=printedLine(inkWords,bottom);
   if(line){
    const top=c.y-2+line.top/3,height=line.height/3;
-   const raw=crop(c.x+1,Math.floor(top),c.width-2,Math.ceil(height),'original',3),mono=crop(c.x+1,Math.floor(top),c.width-2,Math.ceil(height),'original',4);
-   const mx=mono.getContext('2d')!,mp=mx.getImageData(0,0,mono.width,mono.height),bg=.299*c.rgb[0]+.587*c.rgb[1]+.114*c.rgb[2];
-   for(let i=0;i<mp.data.length;i+=4){const lum=.299*mp.data[i]+.587*mp.data[i+1]+.114*mp.data[i+2],v=frames?.lightInk?255-(lum-bg)/(255-bg)*255:(lum-bg*.6)/(bg*.4)*255;mp.data[i]=mp.data[i+1]=mp.data[i+2]=Math.max(0,Math.min(255,v));}
-   mx.putImageData(mp,0,0);result.timePreview=mono;result.text+='\nFocused time ROI: '+JSON.stringify({sourceTop:top,sourceHeight:height,labelBottom:bottom,words:inkWords.map(w=>({text:w.text,y:w.bbox.y0,bottom:w.bbox.y1}))});
+   const raw=crop(c.x+1,top,c.width-2,height,'original',6),mono=crop(c.x+1,top,c.width-2,height,'original',6);
+   const mx=mono.getContext('2d')!,mp=mx.getImageData(0,0,mono.width,mono.height);mp.data.set(timeInk(mp.data,c.rgb,frames?.lightInk));mx.putImageData(mp,0,0);result.timePreview=mono;
    const reads:string[]=[];
-   for(const [name,canvas,mode]of[['focused original 3x',raw,'7'],['focused contrast 4x',mono,'7']]as const){
+   for(const [name,canvas,mode]of[['focused original',raw,'7'],['focused ink',mono,'13']]as const){
     const padded=document.createElement('canvas');padded.width=canvas.width+32;padded.height=canvas.height+32;const px=padded.getContext('2d')!;px.fillStyle='#fff';px.fillRect(0,0,padded.width,padded.height);px.drawImage(canvas,16,16);
     await current.setParameters({tessedit_pageseg_mode:mode,tessedit_char_whitelist:'0123456789:.- ',user_defined_dpi:'300'});
     const response=await current.recognize(padded,{},{text:true,tsv:true});if(job!==generation)return;reads.push(response.data.text);result.text+='\n'+name+': '+response.data.text;
    }
    let agreement=agreeFocusedTimes(reads);
    if(!agreement.range){
-    // Separate the two clocks so the range separator cannot distort digit recognition.
-    const rowWords=inkWords.filter(w=>w.bbox.y0>=line.top&&w.bbox.y1<=line.top+line.height),dash=rowWords.find(w=>/^[-–—]$/.test(w.text));
-    const left=Math.max(c.x+1,c.x-2+Math.min(...rowWords.map(w=>w.bbox.x0))/3-3),right=Math.min(c.x+c.width-1,c.x-2+Math.max(...rowWords.map(w=>w.bbox.x1))/3+3),middle=dash?c.x-2+(dash.bbox.x0+dash.bbox.x1)/6:(left+right)/2;
-    const clockReads:string[]=[];
-    for(const [mode,scale]of[['8',4],['13',5]]as const){
-     const values:string[]=[];
-     for(const [x,width]of[[left,middle-left-3],[middle+3,right-middle-3]]){
-      const clock=crop(Math.floor(x),Math.floor(top)-1,Math.ceil(width),Math.ceil(height)+2,'original',scale),padded=document.createElement('canvas');padded.width=clock.width+40;padded.height=clock.height+40;const cx=padded.getContext('2d')!;cx.fillStyle='#fff';cx.fillRect(0,0,padded.width,padded.height);cx.drawImage(clock,20,20);
-      await current.setParameters({tessedit_pageseg_mode:mode,tessedit_char_whitelist:'0123456789:.',user_defined_dpi:'300'});
-      const reading=await current.recognize(padded,{},{text:true,tsv:false});if(job!==generation)return;values.push(reading.data.text.trim());
-     }
-     clockReads.push(values.join(' - '));result.text+='\nSeparate clocks '+mode+': '+values.join(' - ');
-    }
-    const clockAgreement=agreeFocusedTimes(clockReads);if(clockAgreement.range)agreement=clockAgreement;
-   }
-   if(!agreement.range){
-    const slantReads:string[]=[];
-    const original=crop(c.x+1,Math.floor(top),c.width-2,Math.ceil(height),'original',4);
-    for(const shear of [.2,.3]){
-     const straight=document.createElement('canvas');straight.width=original.width+Math.ceil(original.height*shear)+40;straight.height=original.height+40;
-     const sx=straight.getContext('2d')!;sx.fillStyle='#fff';sx.fillRect(0,0,straight.width,straight.height);sx.setTransform(1,0,shear,1,20,20);sx.drawImage(original,0,0);
-     await current.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'0123456789:.- ',user_defined_dpi:'300'});
-     const reading=await current.recognize(straight,{},{text:true,tsv:false});if(job!==generation)return;slantReads.push(reading.data.text);result.text+='\nDeslanted time '+shear+': '+reading.data.text;
-    }
-    const straightAgreement=agreeFocusedTimes(slantReads);if(straightAgreement.range)agreement=straightAgreement;
+    const padded=document.createElement('canvas');padded.width=raw.width+32;padded.height=raw.height+32;const px=padded.getContext('2d')!;px.fillStyle='#fff';px.fillRect(0,0,padded.width,padded.height);px.drawImage(raw,16,16);
+    await current.setParameters({tessedit_pageseg_mode:'13',tessedit_char_whitelist:'0123456789:.- ',user_defined_dpi:'300'});
+    const response=await current.recognize(padded,{},{text:true,tsv:false});if(job!==generation)return;reads.push(response.data.text);result.text+='\nFocused raw-line retry: '+response.data.text;
+    agreement=agreeFocusedTimes(reads);
    }
    if(agreement.range)result.timeText=agreement.range.start+' - '+agreement.range.end;
    else result.timeWarning=agreement.warning;

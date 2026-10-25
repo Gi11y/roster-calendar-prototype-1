@@ -7,3 +7,5 @@ test('two focused passes must agree, including when full-card OCR misreads 08 as
 test('a short hyphen at mid-digit height belongs to the same time line',()=>{const dash=w('-',49,36,7);dash.bbox.y1=39;const line=printedLine([w('A',5,5),w('08:00',5,30),dash,w('16:30',62,30)],20);assert(line);assert.equal(line.top,24);assert.equal(line.height,24);});
 
 test('mixed compact and colon clocks normalise without changing actual digits',()=>{assert.equal(normalizePrintedTime('1100 - 19:30'),'11:00 - 19:30');assert.equal(normalizePrintedTime('07:00 - 1200'),'07:00 - 12:00');assert.equal(normalizePrintedTime('0800 - 16:30'),'08:00 - 16:30');assert.equal(normalizePrintedTime('100 - 1930'),'100 - 1930');});
+
+test('an unreadable extra pass can corroborate two valid matches but never hide a valid disagreement',()=>{assert.equal(agreeFocusedTimes(['1100-1930','100-1930','11:00-19:30']).range.start,'11:00');assert(agreeFocusedTimes(['08:00-16:30','06:00-18:30','08:00-16:30']).warning);});
