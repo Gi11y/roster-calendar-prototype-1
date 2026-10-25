@@ -14,7 +14,7 @@ function engine():Promise<Engine>{
  if(window.Tesseract)return Promise.resolve(window.Tesseract);
  return script??=(new Promise<Engine>((resolve,reject)=>{const s=document.createElement('script');s.src=assetRoot+'tesseract.min.js';s.onload=()=>window.Tesseract?resolve(window.Tesseract):reject(Error('OCR library unavailable'));s.onerror=()=>reject(Error('OCR files could not load. Check offline readiness.'));document.head.append(s);})).catch(e=>{script=undefined;throw e;});
 }
-function controls(){run.disabled=busy||!image;preview.disabled=busy||!image;input.disabled=busy;for(const id of ['crop-left','crop-top','crop-right','crop-bottom','preprocess','psm'])el<HTMLInputElement>(id).disabled=busy;}
+function controls(){run.disabled=busy||!image;preview.disabled=busy||!image;input.disabled=busy;for(const id of ['crop-left','crop-top','crop-right','crop-bottom','preprocess','psm','threshold'])el<HTMLInputElement>(id).disabled=busy;}
 function reset(){generation++;void worker?.terminate();worker=undefined;image=undefined;words=[];crop=undefined;if(work){work.width=1;work.height=1;}work=undefined;canvas.width=1;canvas.height=1;rows.replaceChildren();text.value='';summary.textContent='No results yet.';progress.value=0;input.value='';busy=false;controls();}
 clear.addEventListener('click',()=>{reset();status.textContent='Image and results cleared from this page.';});
 window.addEventListener('pagehide',reset);
@@ -37,7 +37,7 @@ function prepare(){
  const mode=el<HTMLSelectElement>('preprocess').value;
  if(mode!=='original'){
  const pixels=ctx.getImageData(0,0,work.width,work.height),d=pixels.data;
- for(let i=0;i<d.length;i+=4){let gray=Math.round(.299*d[i]+.587*d[i+1]+.114*d[i+2]);if(mode==='threshold')gray=gray>=160?255:0;d[i]=d[i+1]=d[i+2]=gray;}
+ for(let i=0;i<d.length;i+=4){let gray=Math.round(.299*d[i]+.587*d[i+1]+.114*d[i+2]);if(mode==='threshold')gray=gray>=Math.min(220,Math.max(30,Number(el<HTMLInputElement>('threshold').value)||85))?255:0;d[i]=d[i+1]=d[i+2]=gray;}
  ctx.putImageData(pixels,0,0);
  }
  words=[];text.value='';rows.replaceChildren();summary.textContent='Crop preview. No OCR results yet.';draw();return work;
