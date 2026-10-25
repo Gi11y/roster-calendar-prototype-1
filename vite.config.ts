@@ -6,7 +6,7 @@ function offlineShell(): Plugin {
  return { name: 'offline-shell', generateBundle(_, bundle) {
   function publicFiles(dir: string, prefix = ''): string[] { return readdirSync(dir, {withFileTypes:true}).flatMap(e => e.isDirectory() ? publicFiles(`${dir}/${e.name}`, `${prefix}${e.name}/`) : [`${prefix}${e.name}`]); }
   const statics = publicFiles('public');
-  const files = [...new Set(['index.html', 'ocr.html', 'build-info.json', ...Object.keys(bundle), ...statics])];
+  const files = [...new Set(['index.html', 'ocr.html', 'cards.html', 'build-info.json', ...Object.keys(bundle), ...statics])];
   const digest = createHash('sha256').update(statics.map(f => readFileSync(`public/${f}`).toString('base64')).join('')).update(Object.values(bundle).map(x => x.type === 'chunk' ? x.code : String(x.source)).join('')).digest('hex').slice(0,16);
   this.emitFile({type:'asset',fileName:'build-info.json',source:JSON.stringify({version:digest})});
   this.emitFile({ type: 'asset', fileName: 'sw.js', source: `
@@ -31,4 +31,4 @@ self.addEventListener('fetch', event => {
  }};
 }
 const repo = process.env.GITHUB_REPOSITORY?.split('/')[1];
-export default defineConfig({ base: repo && !repo.endsWith('.github.io') ? `/${repo}/` : '/', plugins: [offlineShell()], build:{rollupOptions:{input:{main:resolve('index.html'),ocr:resolve('ocr.html')}}}, server: { port: 5173, strictPort: true } });
+export default defineConfig({ base: repo && !repo.endsWith('.github.io') ? `/${repo}/` : '/', plugins: [offlineShell()], build:{rollupOptions:{input:{main:resolve('index.html'),ocr:resolve('ocr.html'),cards:resolve('cards.html')}}}, server: { port: 5173, strictPort: true } });
