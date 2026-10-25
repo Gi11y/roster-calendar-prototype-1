@@ -1,5 +1,6 @@
 import './style.css';
 import {timeInk} from './time-image';
+import {printedLine,agreeFocusedTimes,normalizePrintedTime} from './printed-time';
 import './cards-theme.css';
 import {mountCalendarReview} from './calendar-review';
 import {sydneyRange,hoursText} from './sydney-time';
@@ -22,7 +23,7 @@ let anchorSource:'auto'|'manual'|undefined;let dateExplanation='Read the cards t
 const retryDates=el<HTMLButtonElement>('detect-dates'),anchorControls=el<HTMLDetailsElement>('anchor-controls');
 const root=new URL(import.meta.env.BASE_URL+'ocr-assets/',location.origin).href;
 let source:HTMLCanvasElement|undefined,cards:Card[]=[],grid:Grid|undefined,busy=false,generation=0,worker:Worker|undefined;
-interface Result {card:Card;label?:string;confidence?:number;text:string;day?:string;error?:string;labelPreview?:HTMLCanvasElement;labelNote?:string;timeText?:string;timeReason?:string;manualDate?:string;manualStart?:string;manualEnd?:string;manualNextDay?:boolean;reviewed?:boolean}
+interface Result {card:Card;label?:string;confidence?:number;text:string;day?:string;error?:string;labelPreview?:HTMLCanvasElement;labelNote?:string;timeText?:string;timeReason?:string;timeWarning?:string;manualDate?:string;manualStart?:string;manualEnd?:string;manualNextDay?:boolean;reviewed?:boolean}
 type Phase='start'|'reading'|'review'|'calendar';
 let phase:Phase='start';const editingCards=new Set<number>();
 function showPhase(next:Phase,focus=false){phase=next;for(const [id,value] of [['start-screen','start'],['reading-screen','reading'],['date-review','review'],['calendar-screen','calendar']])el(id).hidden=next!==value;el('advanced-tools').hidden=next==='start'||next==='reading';if(focus)document.querySelector<HTMLElement>('#'+(next==='review'?'date-review':'calendar-screen')+' h1')?.focus({preventScroll:false});}
@@ -85,7 +86,7 @@ function render(){list.replaceChildren();for(const result of results){
  const raw=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Recognition diagnostics (raw OCR and rejection reasons)';raw.open=!!result.text&&!result.label;raw.append(summary);const text=document.createElement('pre');text.textContent=result.error||result.text||'Not read yet.';raw.append(text);section.append(raw);const back=document.createElement('a');back.href='#date-review';back.textContent='Back to chronological review';section.append(back);list.append(section);
  }
  syncAnchorOptions();renderDateReview();}
-read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;showPhase('reading');flowMessage('');const job=++generation;busy=true;for(const r of results){r.reviewed=false;r.error=undefined;}controls();render();progress.value=0;status.textContent='Loading the on-device card reader...';let current:Worker|undefined;
+read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;showPhase('reading');flowMessage('');const job=++generation;busy=true;for(const r of results){r.reviewed=false;r.error=undefined;r.timeWarning=undefined;}controls();render();progress.value=0;status.textContent='Loading the on-device card reader...';let current:Worker|undefined;
  try{const lib=await engine();if(job!==generation)return;current=await lib.createWorker('eng',1,{workerPath:root+'worker.min.js',corePath:root,langPath:root.replace(/\/$/,''),workerBlobURL:false,cacheMethod:'none',gzip:true});if(job!==generation){await current.terminate();return;}worker=current;
  const active=results.slice(0,40);
  for(let index=0;index<active.length;index++){if(job!==generation)return;const result=active[index],c=result.card;status.textContent='Reading card '+(index+1)+' of '+active.length+'...';progress.value=index/active.length;
@@ -114,17 +115,29 @@ result.label=decision.label;result.confidence=decision.confidence;result.labelNo
  result.text+='\nLabel readings: '+readings.map(r=>r.source+' = '+(r.label||'?')+' ('+r.confidence.toFixed(1)+'); raw '+JSON.stringify(r.rawText??'')+'; '+(r.detail||'')).join('\n');
  result.text+='\nGlyph isolation: '+(frames?frames.diagnostic:'No connected label crop found.');
 
- // Coloured cards can yield only a label in the original-colour pass.
- // Retry the card with a white background before falling back to default hours.
+ // Read the exact time line on white paper, with two focused confirmations.
  if(!explicitRange(result.timeText||'')){
   const ink=crop(c.x-2,c.y-2,c.width+4,c.height+4,'original',3),ctx=ink.getContext('2d')!,pixels=ctx.getImageData(0,0,ink.width,ink.height);pixels.data.set(timeInk(pixels.data,c.rgb,frames?.lightInk));ctx.putImageData(pixels,0,0);
   ctx.fillStyle='#fff';ctx.fillRect(0,0,ink.width,5);ctx.fillRect(0,ink.height-5,ink.width,5);ctx.fillRect(0,0,5,ink.height);ctx.fillRect(ink.width-5,0,5,ink.height);
   await current.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:'',preserve_interword_spaces:'1',user_defined_dpi:'300'});
   const timeCard=await current.recognize(ink,{},{text:true,tsv:true});if(job!==generation)return;
-  const safe=shiftTextOnly(timeCard.data.text);
-  if(explicitRange(safe)||/\d{1,2}[:.]\d{2}/.test(safe))result.timeText+='\n'+safe;
-  const inkWords=parseTsv(timeCard.data.tsv||'');if(inkWords.length)fullWords=inkWords;
+  const safe=shiftTextOnly(timeCard.data.text),inkWords=parseTsv(timeCard.data.tsv||'');if(inkWords.length)fullWords=inkWords;
   result.text+='\nHigh-contrast time-card OCR:\n'+timeCard.data.text;
+  const bottom=frames?(frames.bottom-(c.y-2))*3:0,line=printedLine(inkWords,bottom);
+  if(line){
+   const top=c.y-2+line.top/3,height=line.height/3;
+   const raw=crop(c.x+1,top,c.width-2,height,'original',6),mono=crop(c.x+1,top,c.width-2,height,'original',6);
+   const mx=mono.getContext('2d')!,mp=mx.getImageData(0,0,mono.width,mono.height);mp.data.set(timeInk(mp.data,c.rgb,frames?.lightInk));mx.putImageData(mp,0,0);
+   const reads:string[]=[];
+   for(const [name,canvas,mode]of[['focused original',raw,'7'],['focused ink',mono,'13']]as const){
+    const padded=document.createElement('canvas');padded.width=canvas.width+32;padded.height=canvas.height+32;const px=padded.getContext('2d')!;px.fillStyle='#fff';px.fillRect(0,0,padded.width,padded.height);px.drawImage(canvas,16,16);
+    await current.setParameters({tessedit_pageseg_mode:mode,tessedit_char_whitelist:'0123456789:.- ',user_defined_dpi:'300'});
+    const response=await current.recognize(padded,{},{text:true,tsv:true});if(job!==generation)return;reads.push(response.data.text);result.text+='\n'+name+': '+response.data.text;
+   }
+   const agreement=agreeFocusedTimes(reads);
+   if(agreement.range)result.timeText=agreement.range.start+' - '+agreement.range.end;
+   else result.timeWarning=agreement.warning;
+  }else if(/\d{1,2}[:.°º]\d{2}|\d{4}\s*[-–—]\s*\d{4}/.test(safe))result.timeWarning='Printed time text was detected but its line was unclear. Enter both times after checking the screenshot.';
  }
  const unit=Math.max(.65,Math.min(3,c.width/90));
  const labelWord=fullWords.find(w=>labelFromText(w.text)&&w.bbox.y0<Math.max(90*unit,c.height));
@@ -167,10 +180,11 @@ function syncAnchorOptions(){
 function dateDisplay(date:string|undefined){if(!validDate(date))return'Unassigned date';return new Intl.DateTimeFormat('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(date+'T00:00:00Z'));}
 function reviewState(result:Result,assigned:AssignedDate|undefined){
  const p=proposal(result.label,result.card.colour,result.timeText??shiftTextOnly(result.text));
- const start=result.manualStart??p.range?.start,end=result.manualEnd??p.range?.end,nextDay=result.manualNextDay??p.range?.nextDay??false;
+ const unresolved=result.timeWarning&&!(validClock(result.manualStart)&&validClock(result.manualEnd));
+ const start=result.manualStart??(unresolved?undefined:p.range?.start),end=result.manualEnd??(unresolved?undefined:p.range?.end),nextDay=result.manualNextDay??p.range?.nextDay??false;
  const timing=reviewTiming(assigned?.date,start,end,nextDay);
  const zoned=sydneyRange(assigned?.date,start,end,nextDay);
- const error=timing.error||zoned.error||(!result.label?'Confirm the shift label in Card OCR details.':result.card.colour==='uncertain'?'Confirm the staff role/colour in Card OCR details.':result.error?'OCR reported an error; inspect the card.':undefined);
+ const error=(unresolved?result.timeWarning:undefined)||timing.error||zoned.error||(!result.label?'Confirm the shift label in Card OCR details.':result.card.colour==='uncertain'?'Confirm the staff role/colour in Card OCR details.':result.error?'OCR reported an error; inspect the card.':undefined);
  return{p,start,end,nextDay,timing,zoned,error};
 }
 function renderDateReview(){
@@ -187,7 +201,7 @@ function renderDateReview(){
  const heading=document.createElement('h3');heading.className='shift-date';heading.textContent=assignment.date?new Intl.DateTimeFormat('en-AU',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'}).format(new Date(assignment.date+'T00:00:00Z')):'Date needed';
  const hours=document.createElement('span');hours.className='shift-hours';hours.textContent=state.start&&state.end?state.start+'–'+state.end:'Check times';top.append(heading,hours);copy.append(top);
  const role=document.createElement('p');role.className='shift-role';const name=result.label==='A'?'Morning':result.label==='P'?'Afternoon':result.label==='N'||result.label==='N10'?'Night':'Shift type needed';role.textContent=name+' · '+(result.card.colour==='light'?'Educator':result.card.colour==='dark'?'Floor staff':'Role needed');copy.append(role);
- if(!result.reviewed&&state.p.range&&result.manualStart===undefined&&result.manualEnd===undefined&&state.p.basis.startsWith('Inferred')){const basis=document.createElement('p');basis.className='shift-overnight';basis.textContent='Default hours · check against screenshot';copy.append(basis);}
+ if(!result.reviewed&&!result.timeWarning&&state.p.range&&result.manualStart===undefined&&result.manualEnd===undefined&&state.p.basis.startsWith('Inferred')){const basis=document.createElement('p');basis.className='shift-overnight';basis.textContent='Default hours · check against screenshot';copy.append(basis);}
  if(state.nextDay){const overnight=document.createElement('p');overnight.className='shift-overnight';overnight.textContent='Ends next day';copy.append(overnight);}
  const checkLabel=document.createElement('label');checkLabel.className='round-confirm';const check=document.createElement('input');check.type='checkbox';check.checked=!!result.reviewed&&!state.error;check.disabled=busy||!!state.error;check.setAttribute('aria-label','Reviewed card '+entry.cardId);const mark=document.createElement('span');mark.className='checkmark';mark.setAttribute('aria-hidden','true');checkLabel.append(check,mark);
  check.addEventListener('change',()=>{result.reviewed=check.checked;renderDateReview();document.querySelector<HTMLInputElement>('[aria-label="Reviewed card '+entry.cardId+'"]')?.focus({preventScroll:true});});
