@@ -1,4 +1,5 @@
 import './style.css';
+import {mountCalendarReview} from './calendar-review';
 import {sydneyRange,hoursText} from './sydney-time';
 import {prepareEvents,type ReviewedShift} from './approved-events';
 import {detectCards,findGrid,dayCell,labelFromText,proposal,type Card,type Grid,type Colour} from './card-data';
@@ -10,6 +11,7 @@ import {isolateLabel,chooseLabel,pGlyphEvidence,pGlyphCheck,type LabelReading} f
 interface Worker {recognize(image:HTMLCanvasElement,options:object,output:object):Promise<{data:{text:string;tsv:string}}> ;setParameters(options:object):Promise<unknown>;terminate():Promise<unknown>}
 interface Engine {createWorker(lang:string,oem:number,options:object):Promise<Worker>}
 declare global {interface Window {Tesseract?:Engine}}
+const calendarReview=mountCalendarReview();
 const el=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 const file=el<HTMLInputElement>('card-file'),detect=el<HTMLButtonElement>('detect-cards'),read=el<HTMLButtonElement>('read-cards'),view=el<HTMLCanvasElement>('card-image'),status=el('card-status'),progress=el<HTMLProgressElement>('card-progress'),list=el('card-results'),header=el<HTMLTextAreaElement>('header-evidence');
 const anchorSelect=el<HTMLSelectElement>('anchor-card'),anchorDate=el<HTMLInputElement>('anchor-date'),weekOrder=el<HTMLInputElement>('week-order'),applyAnchor=el<HTMLButtonElement>('apply-anchor');
@@ -22,7 +24,7 @@ interface Result {card:Card;label?:string;confidence?:number;text:string;day?:st
 let results:Result[]=[];let script:Promise<Engine>|undefined;
 let previewRevision=0;
 const prepareButton=el<HTMLButtonElement>('prepare-events'),reminderInput=el<HTMLSelectElement>('event-reminder');
-function invalidatePreview(){previewRevision++;el('event-preview').replaceChildren();el('event-preview-status').textContent='Review every detected card to prepare the event preview. Nothing is sent to Google.';prepareButton.disabled=true;}
+function invalidatePreview(){calendarReview.setEvents([]);previewRevision++;el('event-preview').replaceChildren();el('event-preview-status').textContent='Review every detected card to prepare the event preview. Nothing is sent to Google.';prepareButton.disabled=true;}
 reminderInput.addEventListener('change',()=>renderDateReview());
 function controls(){retryDates.disabled=busy||!results.length||!header.value.trim();anchorSelect.disabled=busy;anchorDate.disabled=busy;weekOrder.disabled=busy;applyAnchor.disabled=busy||!results.length||!validDate(anchorDate.value);file.disabled=busy;detect.disabled=busy||!source;read.disabled=busy||!cards.length;}
 function clear(){invalidatePreview();anchorSource=undefined;dateExplanation='Read the cards to detect dates automatically.';el('auto-date-status').textContent=dateExplanation;anchorControls.open=false;dateAnchor=undefined;anchorDate.value='';weekOrder.checked=false;anchorSelect.replaceChildren();el('date-results').replaceChildren();el('review-count').textContent='';el('date-anchor-status').textContent='No date anchor confirmed.';generation++;void worker?.terminate();worker=undefined;if(source){source.width=1;source.height=1;}source=undefined;cards=[];results=[];grid=undefined;view.width=view.height=1;list.replaceChildren();header.value='';el('card-count').textContent='';el('grid-status').textContent='No grid detected yet.';busy=false;progress.value=0;file.value='';controls();}
@@ -165,7 +167,7 @@ function renderDateReview(){
  const show=document.createElement('button');show.textContent='Show original card '+entry.cardId;show.addEventListener('click',()=>document.getElementById('source-card-'+entry.cardId)?.scrollIntoView({behavior:'smooth',block:'start'}));article.append(show);root.append(article);
  }
  prepareButton.disabled=busy||!results.length||reviewed!==results.length;reminderInput.disabled=busy;
- el('review-count').textContent=results.length+' card(s); '+dated+' dated; '+reviewed+' manually reviewed. Preview only - nothing has been sent to Google.';
+ el('review-count').textContent=results.length+' card(s); '+dated+' dated; '+reviewed+' manually reviewed. No real roster events have been written.';
  const datedDates=assignments.flatMap(a=>a.date?[a.date]:[]).sort();
  el('auto-date-status').textContent=anchorSource==='auto'&&dateAnchor?dateExplanation+' Anchor: card '+dateAnchor.cardId+' = '+dateDisplay(dateAnchor.date)+'.'+(datedDates.length?' Review range: '+dateDisplay(datedDates[0])+' to '+dateDisplay(datedDates[datedDates.length-1])+'.':'')+' Use Change date anchor if this looks wrong.':anchorSource==='manual'?'Using your manual date anchor. Individual corrections remain available.':dateExplanation;
  el('date-anchor-status').textContent=dateAnchor?'Anchor: card '+dateAnchor.cardId+' = '+dateAnchor.date+'. Check any conflicts below. Manual date overrides are retained.':'No date anchor confirmed. Enter the exact date of one numbered card, or enter individual dates below.';
@@ -183,6 +185,7 @@ prepareButton.addEventListener('click',async()=>{
   });
   const prepared=await prepareEvents(shifts,reminderInput.value==='none'?null:Number(reminderInput.value));
   if(revision!==previewRevision)return;
+  calendarReview.setEvents(prepared.map(item=>item.event));
   const root=el('event-preview');root.replaceChildren();
   for(const item of prepared){
    const article=document.createElement('article');article.className='shift-card';
