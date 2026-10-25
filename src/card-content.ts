@@ -1,4 +1,4 @@
-import {explicitRange} from './card-data';
+import {explicitRange} from './card-data.ts';
 import type {Word} from './ocr-data';
 export function isMetadata(text:string):boolean{return /(?:\b\d[\d\s]{4,10}\s*AC[S5]\b|\bAC[S5]\b|\bGWW\b|\bGOS\s+CNE|\bCC\s*[-–]\s*GOS\b)/i.test(text);}
 export function shiftTextOnly(text:string):string{
