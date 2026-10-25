@@ -10,7 +10,7 @@ function offlineShell():Plugin{
   const final=files(dir).filter(f=>f!=='sw.js'&&f!=='build-info.json').sort();
   const digest=createHash('sha256').update(final.map(f=>f+'\n'+readFileSync(dir+'/'+f).toString('base64')).join('\n')).digest('hex').slice(0,16);
   writeFileSync(dir+'/build-info.json',JSON.stringify({version:digest}));
-  const shell=[...final,'build-info.json'];
+  const shell=[...final.filter(f=>f!=='refresh.html'&&f!=='refresh.js'),'build-info.json'];
   writeFileSync(dir+'/sw.js',`
 const ROOT = new URL('./', self.location.href);
 const PREFIX = 'roster-prototype1:' + ROOT.pathname + ':';
@@ -24,6 +24,12 @@ self.addEventListener('fetch', event => {
  if(req.method !== 'GET' || url.origin !== ROOT.origin) return;
  const key = req.mode === 'navigate' ? new URL(url.pathname === ROOT.pathname ? 'index.html' : url.pathname, ROOT).href : req.url;
  if(!SHELL.includes(key)) return;
+ if(req.mode === 'navigate') {
+  // Online navigation uses fresh HTML; offline falls back to a complete pinned build.
+  // Do not put new HTML into an old cache without its matching assets.
+  event.respondWith((async () => { try { const response = await fetch(req, {cache:'no-store'}); if(response.ok) return response; } catch {} const cached = await (await caches.open(CACHE)).match(key); if(cached) return cached; throw Error('App unavailable offline'); })());
+  return;
+ }
  event.respondWith(caches.open(CACHE).then(async cache => (await cache.match(key)) || fetch(req)));
 });`);
  }};
