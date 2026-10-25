@@ -1,13 +1,14 @@
 import {explicitRange} from './card-data.ts';
 import type {Word} from './ocr-data';
-export function isMetadata(text:string):boolean{return /(?:\b\d[\d\s]{4,10}\s*AC[S5]\b|\bAC[S5]\b|\bGWW\b|\bGOS\s+CNE|\bCC\s*[-–]\s*GOS\b)/i.test(text);}
+const METADATA=/(?:^\s*\d{6}(?!\d)|\b\d{6}\s*AC[S5]\b|\bAC[S5]\b|\bGWW\b|\bGOS\s+CNE|\bCC\s*[-–]\s*GOS\b)/i;
+export function isMetadata(text:string):boolean{return METADATA.test(text);}
 export function shiftTextOnly(text:string):string{
  const kept:string[]=[];
  for(const line of text.split(/\r?\n/)){
   if(/^Label readings:|^Glyph isolation:|^Time-line OCR/i.test(line.trim()))break;
   if(isMetadata(line)){
    // A valid printed range may share an OCR line with the metadata; retain only that prefix.
-   const marker=line.search(/(?:\b\d[\d\s]{4,10}\s*AC[S5]\b|\bAC[S5]\b|\bGWW\b|\bGOS\s+CNE|\bCC\s*[-–]\s*GOS\b)/i);
+   const marker=line.search(METADATA);
    const prefix=line.slice(0,Math.max(0,marker));if(explicitRange(prefix))kept.push(prefix);
    break;
   }

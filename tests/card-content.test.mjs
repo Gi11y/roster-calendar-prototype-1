@@ -7,3 +7,5 @@ test('same-line time plus metadata keeps only the valid prefix',()=>{assert.equa
 test('time ROI ends before metadata and starts after label',()=>{const band=planTimeBand([word('A',2,5,8,10),word('07:00',2,25),word('-',34,25),word('15:30',45,25),word('252379',2,45),word('ACS',50,45)],15,100);assert.equal(band.metadataFound,true);assert(band.top>15);assert(band.top+band.height<45);});
 test('missing metadata does not trigger an unbounded time pass',()=>{assert.equal(planTimeBand([word('A',2,5)],15,100).height,0);});
 test('valid pre-metadata disagreements still require review',()=>{assert.equal(proposal('A','light',shiftTextOnly('A\n07:00 - 15:30\n07:00 - 16:00\n252379 ACS')).range,undefined);});
+
+test('six-digit metadata code still marks its row when ACS is misread',()=>{assert(isMetadata('252379 AG5'));assert.equal(shiftTextOnly('A\n252379 AG5\nGWW CRC'),'A');});
