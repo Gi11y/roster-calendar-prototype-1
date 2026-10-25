@@ -9,7 +9,7 @@ export function normalizePrintedTime(text:string):string{
 export function printedLine(words:Word[],labelBottom:number):{top:number;height:number}|undefined{
  const rows:Word[][]=[];
  for(const w of words.slice().sort((a,b)=>a.bbox.y0-b.bbox.y0||a.bbox.x0-b.bbox.x0)){
-  const row=rows.find(r=>Math.abs(r[0].bbox.y0-w.bbox.y0)<=Math.max(3,(w.bbox.y1-w.bbox.y0)*.45));if(row)row.push(w);else rows.push([w]);
+  const row=rows.find(r=>r.some(p=>Math.min(p.bbox.y1,w.bbox.y1)>Math.max(p.bbox.y0,w.bbox.y0)));if(row)row.push(w);else rows.push([w]);
  }
  for(const row of rows){
   const text=row.slice().sort((a,b)=>a.bbox.x0-b.bbox.x0).map(w=>w.text).join(' ');
