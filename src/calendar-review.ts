@@ -30,6 +30,9 @@ export function mountCalendarReview(){
   removals.disabled=busy;from.disabled=busy||!removals.checked;to.disabled=busy||!removals.checked;
   if(minimal){
    const stage=calendarStage(connected,verified,hasComparison),count=events.length;
+   el('calendar-overview').dataset.stage=stage;
+   el('calendar-main-actions').hidden=stage==='results';
+   el(stage==='results'?'calendar-result-actions':'calendar-main-actions').appendChild(compare);
    el('calendar-approved-count').textContent=count+' confirmed '+(count===1?'shift':'shifts');
    el('review-connection').textContent=connected?'Google connected':'Not connected';
    el('review-destination').textContent=connected&&verified?'Roster calendar selected':'';
@@ -39,7 +42,7 @@ export function mountCalendarReview(){
    el('open-calendar-settings').hidden=stage!=='select';el<HTMLButtonElement>('open-calendar-settings').disabled=busy||!storageReady;
    compare.hidden=stage!=='compare'&&stage!=='results';compare.textContent=busy?'Checking…':hasComparison?'Check again':'Check calendar';
    el('calendar-account-actions').hidden=!connected;el<HTMLButtonElement>('review-reconnect').disabled=busy;
-   el('calendar-step-title').textContent=stage==='connect'?'Connect Google':stage==='select'?'Choose your Roster calendar':stage==='compare'?'Ready to compare':lastCounts&&(lastCounts.conflict+lastCounts.restore)>0?'Some shifts need review':lastCounts&&(lastCounts.new+lastCounts.changed+lastCounts.removed)>0?'Your calendar changes':'Already up to date';
+   el('calendar-step-title').textContent=stage==='connect'?'Connect Google':stage==='select'?'Choose your Roster calendar':stage==='compare'?'Ready to compare':lastCounts&&(lastCounts.conflict+lastCounts.restore)>0?'Some shifts need review':lastCounts&&(lastCounts.new+lastCounts.changed+lastCounts.removed)>0?(lastCounts.new+lastCounts.changed+lastCounts.removed)+' changes found':'Already up to date';
    el('calendar-step-copy').textContent=stage==='connect'?'Use your personal Google account.':stage==='select'?'Select the existing calendar from your working setup.':stage==='compare'?'Check your confirmed shifts against Google.':'Nothing has been changed.';
    el('calendar-cleanup-notice').hidden=!pending||busy;
    if(pending&&!busy){openOptions();el<HTMLDetailsElement>('calendar-developer-tests').open=true;el<HTMLDetailsElement>('calendar-probe-details').open=true;}
