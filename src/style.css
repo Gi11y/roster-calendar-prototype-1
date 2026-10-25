@@ -4,3 +4,5 @@
 #connection[data-connected="true"]{background:#e3f5e8;color:#135b2b}
 label{display:block;margin:14px 0 6px}input[type="text"]{width:100%;padding:12px;border:1px solid #8899aa;border-radius:8px;margin-bottom:10px;font:inherit}
 details{margin-top:18px;border-top:1px solid #dfe7ef;padding-top:14px}summary{cursor:pointer}#copy-calendar{margin-bottom:8px}#destination{font-weight:600}
+
+#ocr-canvas{max-width:100%;height:auto;border:1px solid #ccd6df}.table-scroll{overflow:auto;max-height:420px}table{border-collapse:collapse;width:100%;font-size:14px}td,th{padding:6px;border-bottom:1px solid #dde4ea;text-align:left}textarea{width:100%;font:14px/1.5 monospace}.crop-fields{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.crop-fields input{width:100%;font:inherit}select{max-width:100%;font:inherit;padding:8px}fieldset{border:1px solid #ccd6df;border-radius:8px;margin-top:12px}.word-button{font-size:14px;min-height:34px;padding:4px 8px}progress{width:100%}#image-file{max-width:100%}

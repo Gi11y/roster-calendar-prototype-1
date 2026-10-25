@@ -8,7 +8,10 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4173",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
-    "test:production": "node tests/offline.check.mjs"
+    "test:production": "node tests/offline.check.mjs",
+    "vendor:ocr": "node scripts/vendor-ocr.mjs",
+    "prebuild": "npm run vendor:ocr",
+    "predev": "npm run vendor:ocr"
   },
   "devDependencies": {
     "typescript": "~5.9.3",
@@ -17,5 +20,9 @@
   },
   "engines": {
     "node": ">=22.18.0"
+  },
+  "dependencies": {
+    "tesseract.js": "6.0.1",
+    "@tesseract.js-data/eng": "1.0.0"
   }
 }
