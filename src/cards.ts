@@ -153,6 +153,17 @@ result.label=decision.label;result.confidence=decision.confidence;result.labelNo
     }
     const clockAgreement=agreeFocusedTimes(clockReads);if(clockAgreement.range)agreement=clockAgreement;
    }
+   if(!agreement.range){
+    const slantReads:string[]=[];
+    const original=crop(c.x+1,Math.floor(top),c.width-2,Math.ceil(height),'original',4);
+    for(const shear of [.2,.3]){
+     const straight=document.createElement('canvas');straight.width=original.width+Math.ceil(original.height*shear)+40;straight.height=original.height+40;
+     const sx=straight.getContext('2d')!;sx.fillStyle='#fff';sx.fillRect(0,0,straight.width,straight.height);sx.setTransform(1,0,shear,1,20,20);sx.drawImage(original,0,0);
+     await current.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'0123456789:.- ',user_defined_dpi:'300'});
+     const reading=await current.recognize(straight,{},{text:true,tsv:false});if(job!==generation)return;slantReads.push(reading.data.text);result.text+='\nDeslanted time '+shear+': '+reading.data.text;
+    }
+    const straightAgreement=agreeFocusedTimes(slantReads);if(straightAgreement.range)agreement=straightAgreement;
+   }
    if(agreement.range)result.timeText=agreement.range.start+' - '+agreement.range.end;
    else result.timeWarning=agreement.warning;
   }else if(/\d{1,2}[:.°º]\d{2}|\d{4}\s*[-–—]\s*\d{4}/.test(safe))result.timeWarning='Printed time text was detected but its line was unclear. Enter both times after checking the screenshot.';
