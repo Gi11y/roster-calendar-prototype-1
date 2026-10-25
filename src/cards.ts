@@ -1,6 +1,7 @@
 import './style.css';
 import {detectCards,findGrid,dayCell,labelFromText,proposal,type Card,type Grid,type Colour} from './card-data';
 import {parseTsv} from './ocr-data';
+import {associateDates,validDate,validClock,reviewTiming,sortReview,type DateAnchor,type AssignedDate} from './date-review';
 import {shiftTextOnly,planTimeBand} from './card-content';
 import {isolateLabel,chooseLabel,pGlyphEvidence,pGlyphCheck,type LabelReading} from './label-data';
 interface Worker {recognize(image:HTMLCanvasElement,options:object,output:object):Promise<{data:{text:string;tsv:string}}> ;setParameters(options:object):Promise<unknown>;terminate():Promise<unknown>}
@@ -8,12 +9,14 @@ interface Engine {createWorker(lang:string,oem:number,options:object):Promise<Wo
 declare global {interface Window {Tesseract?:Engine}}
 const el=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 const file=el<HTMLInputElement>('card-file'),detect=el<HTMLButtonElement>('detect-cards'),read=el<HTMLButtonElement>('read-cards'),view=el<HTMLCanvasElement>('card-image'),status=el('card-status'),progress=el<HTMLProgressElement>('card-progress'),list=el('card-results'),header=el<HTMLTextAreaElement>('header-evidence');
+const anchorSelect=el<HTMLSelectElement>('anchor-card'),anchorDate=el<HTMLInputElement>('anchor-date'),weekOrder=el<HTMLInputElement>('week-order'),applyAnchor=el<HTMLButtonElement>('apply-anchor');
+let dateAnchor:DateAnchor|undefined;
 const root=new URL(import.meta.env.BASE_URL+'ocr-assets/',location.origin).href;
 let source:HTMLCanvasElement|undefined,cards:Card[]=[],grid:Grid|undefined,busy=false,generation=0,worker:Worker|undefined;
-interface Result {card:Card;label?:string;confidence?:number;text:string;day?:string;error?:string;labelPreview?:HTMLCanvasElement;labelNote?:string;timeText?:string;timeReason?:string}
+interface Result {card:Card;label?:string;confidence?:number;text:string;day?:string;error?:string;labelPreview?:HTMLCanvasElement;labelNote?:string;timeText?:string;timeReason?:string;manualDate?:string;manualStart?:string;manualEnd?:string;manualNextDay?:boolean;reviewed?:boolean}
 let results:Result[]=[];let script:Promise<Engine>|undefined;
-function controls(){file.disabled=busy;detect.disabled=busy||!source;read.disabled=busy||!cards.length;}
-function clear(){generation++;void worker?.terminate();worker=undefined;if(source){source.width=1;source.height=1;}source=undefined;cards=[];results=[];grid=undefined;view.width=view.height=1;list.replaceChildren();header.value='';el('card-count').textContent='';el('grid-status').textContent='No grid detected yet.';busy=false;progress.value=0;file.value='';controls();}
+function controls(){anchorSelect.disabled=busy;anchorDate.disabled=busy;weekOrder.disabled=busy;applyAnchor.disabled=busy||!results.length||!validDate(anchorDate.value);file.disabled=busy;detect.disabled=busy||!source;read.disabled=busy||!cards.length;}
+function clear(){dateAnchor=undefined;anchorDate.value='';weekOrder.checked=false;anchorSelect.replaceChildren();el('date-results').replaceChildren();el('review-count').textContent='';el('date-anchor-status').textContent='No date anchor confirmed.';generation++;void worker?.terminate();worker=undefined;if(source){source.width=1;source.height=1;}source=undefined;cards=[];results=[];grid=undefined;view.width=view.height=1;list.replaceChildren();header.value='';el('card-count').textContent='';el('grid-status').textContent='No grid detected yet.';busy=false;progress.value=0;file.value='';controls();}
 el('clear-cards').addEventListener('click',()=>{clear();status.textContent='Image, crops and results cleared.';});window.addEventListener('pagehide',clear);
 function engine():Promise<Engine>{if(window.Tesseract)return Promise.resolve(window.Tesseract);return script??=new Promise<Engine>((resolve,reject)=>{const s=document.createElement('script');s.src=root+'tesseract.min.js';s.onload=()=>window.Tesseract?resolve(window.Tesseract):reject(Error('OCR API missing'));s.onerror=()=>{script=undefined;reject(Error('Could not load OCR files. Check offline readiness.'));};document.head.append(s);});}
 file.addEventListener('change',async()=>{const selected=file.files?.[0];clear();if(!selected)return;const job=generation,url=URL.createObjectURL(selected);try{
@@ -47,7 +50,7 @@ function labelFrames(card:Card):{normal:HTMLCanvasElement;binary:HTMLCanvasEleme
 }
 
 function render(){list.replaceChildren();for(const result of results){
- const card=result.card,section=document.createElement('article');section.className='shift-card';const title=document.createElement('h3');title.textContent='Card '+card.id;section.append(title);
+ const card=result.card,section=document.createElement('article');section.className='shift-card';section.id='source-card-'+card.id;const title=document.createElement('h3');title.textContent='Card '+card.id;section.append(title);
  const thumb=crop(card.x-2,card.y-2,card.width+4,card.height+4,'original',2);thumb.className='card-thumb';section.append(thumb);
  const evidence=document.createElement('p');evidence.className='small';const cell=dayCell(card,grid);evidence.textContent='Original RGB '+card.rgb.join(', ')+'; hue '+card.hue+'°. '+(cell?'Grid column '+(cell.column+1)+(result.day?'; day OCR '+result.day+' (unverified)':' ; day unread/unconfirmed'):'Date grid unconfirmed')+'. No month/year assigned.';section.append(evidence);
  const colourLabel=document.createElement('label');colourLabel.textContent='Colour category ';const colour=document.createElement('select');colour.setAttribute('aria-label','Colour for card '+card.id);
@@ -57,10 +60,11 @@ function render(){list.replaceChildren();for(const result of results){
  if(result.labelPreview){const caption=document.createElement('p');caption.textContent='Enlarged label crop used for OCR:';section.append(caption);result.labelPreview.className='card-label-preview';result.labelPreview.setAttribute('aria-label','Enlarged top-left label for card '+card.id);section.append(result.labelPreview);}
  const labelNote=document.createElement('p');labelNote.textContent=result.labelNote||'';section.append(labelNote);
  const note=document.createElement('p');if(result.confidence!==undefined)note.textContent='Label reading score: '+result.confidence.toFixed(1)+' (not a probability or guarantee).';section.append(note);
- const proposed=document.createElement('p');proposed.className='proposal';const update=()=>{card.colour=colour.value as Colour;result.label=label.value||undefined;const p=proposal(result.label,card.colour,result.timeText??shiftTextOnly(result.text));const role=card.colour==='light'?'Educator shift - ':card.colour==='dark'?'Floor staff - ':'';proposed.textContent=role+(p.range?p.range.start+' to '+p.range.end+(p.range.nextDay?' (+1 day)':'')+' - '+p.basis+(p.warning?'. '+p.warning:''):p.basis+': '+p.warning);};colour.addEventListener('change',update);label.addEventListener('change',update);update();section.append(proposed);
- const raw=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Recognition diagnostics (raw OCR and rejection reasons)';raw.open=!!result.text&&!result.label;raw.append(summary);const text=document.createElement('pre');text.textContent=result.error||result.text||'Not read yet.';raw.append(text);section.append(raw);list.append(section);
- }}
-read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;const job=++generation;busy=true;controls();progress.value=0;status.textContent='Loading the on-device card reader...';let current:Worker|undefined;
+ const proposed=document.createElement('p');proposed.className='proposal';const update=()=>{card.colour=colour.value as Colour;result.label=label.value||undefined;const p=proposal(result.label,card.colour,result.timeText??shiftTextOnly(result.text));const role=card.colour==='light'?'Educator shift - ':card.colour==='dark'?'Floor staff - ':'';proposed.textContent=role+(p.range?p.range.start+' to '+p.range.end+(p.range.nextDay?' (+1 day)':'')+' - '+p.basis+(p.warning?'. '+p.warning:''):p.basis+': '+p.warning);};colour.addEventListener('change',()=>{result.reviewed=false;update();renderDateReview();});label.addEventListener('change',()=>{result.reviewed=false;update();renderDateReview();});update();section.append(proposed);
+ const raw=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Recognition diagnostics (raw OCR and rejection reasons)';raw.open=!!result.text&&!result.label;raw.append(summary);const text=document.createElement('pre');text.textContent=result.error||result.text||'Not read yet.';raw.append(text);section.append(raw);const back=document.createElement('a');back.href='#date-review';back.textContent='Back to chronological review';section.append(back);list.append(section);
+ }
+ syncAnchorOptions();renderDateReview();}
+read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;const job=++generation;busy=true;for(const r of results){r.reviewed=false;r.error=undefined;}controls();render();progress.value=0;status.textContent='Loading the on-device card reader...';let current:Worker|undefined;
  try{const lib=await engine();if(job!==generation)return;current=await lib.createWorker('eng',1,{workerPath:root+'worker.min.js',corePath:root,langPath:root.replace(/\/$/,''),workerBlobURL:false,cacheMethod:'none',gzip:true});if(job!==generation){await current.terminate();return;}worker=current;
  const active=results.slice(0,40);
  for(let index=0;index<active.length;index++){if(job!==generation)return;const result=active[index],c=result.card;status.textContent='Reading card '+(index+1)+' of '+active.length+'...';progress.value=index/active.length;
@@ -106,6 +110,52 @@ read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;c
  }catch(e){if(job===generation)status.textContent='Card OCR failed: '+String(e);}
  finally{if(current)await current.terminate().catch(()=>{});if(job===generation){worker=undefined;busy=false;controls();render();}}
 });
+
+function syncAnchorOptions(){
+ const value=anchorSelect.value;anchorSelect.replaceChildren();
+ for(const result of results){const option=document.createElement('option');option.value=String(result.card.id);const cell=dayCell(result.card,grid);option.textContent='Card '+result.card.id+(result.day?' - day OCR '+result.day:' - day unread')+(cell?' (column '+(cell.column+1)+')':'');anchorSelect.append(option);}
+ if(results.some(r=>String(r.card.id)===value))anchorSelect.value=value;
+}
+function dateDisplay(date:string|undefined){if(!validDate(date))return'Unassigned date';return new Intl.DateTimeFormat('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(date+'T00:00:00Z'));}
+function reviewState(result:Result,assigned:AssignedDate|undefined){
+ const p=proposal(result.label,result.card.colour,result.timeText??shiftTextOnly(result.text));
+ const start=result.manualStart??p.range?.start,end=result.manualEnd??p.range?.end,nextDay=result.manualNextDay??p.range?.nextDay??false;
+ const timing=reviewTiming(assigned?.date,start,end,nextDay);
+ const error=timing.error||(!result.label?'Confirm the shift label in Card OCR details.':result.card.colour==='uncertain'?'Confirm the staff role/colour in Card OCR details.':result.error?'OCR reported an error; inspect the card.':undefined);
+ return{p,start,end,nextDay,timing,error};
+}
+function renderDateReview(){
+ const assignments=associateDates(results,grid,dateAnchor),map=new Map(assignments.map(a=>[a.cardId,a]));
+ const ordered=sortReview(results.map(result=>({cardId:result.card.id,date:map.get(result.card.id)?.date,start:reviewState(result,map.get(result.card.id)).start,result})));
+ const root=el('date-results');root.replaceChildren();let reviewed=0,dated=0;
+ for(const entry of ordered){const result=entry.result,assignment=map.get(entry.cardId)!,state=reviewState(result,assignment);if(assignment.date)dated++;if(result.reviewed&&!state.error)reviewed++;
+ const article=document.createElement('article');article.className='shift-card date-row';
+ const heading=document.createElement('h3');heading.textContent=dateDisplay(assignment.date)+' - Card '+entry.cardId+' - '+(result.card.colour==='light'?'Educator':result.card.colour==='dark'?'Floor staff':'Role unclear')+' '+(result.label||'?');article.append(heading);
+ const evidence=document.createElement('p');evidence.className='small';evidence.textContent=assignment.basis+(assignment.warning?'. '+assignment.warning:'')+'. '+state.p.basis;article.append(evidence);
+ const fields=document.createElement('div');fields.className='date-fields';
+ const dateLabel=document.createElement('label');dateLabel.textContent='Shift date ';const date=document.createElement('input');date.type='date';date.value=assignment.date||'';date.disabled=busy;date.setAttribute('aria-label','Date for card '+entry.cardId);dateLabel.append(date);fields.append(dateLabel);
+ date.addEventListener('change',()=>{result.manualDate=date.value;result.reviewed=false;renderDateReview();});
+ if(assignment.candidate){const use=document.createElement('button');use.textContent='Use proposed '+assignment.candidate+' after checking image';use.disabled=busy;use.addEventListener('click',()=>{result.manualDate=assignment.candidate;result.reviewed=false;renderDateReview();});article.append(use);}
+ const startLabel=document.createElement('label');startLabel.textContent='Start ';const start=document.createElement('input');start.type='time';start.value=state.start||'';start.disabled=busy;start.setAttribute('aria-label','Start for card '+entry.cardId);startLabel.append(start);fields.append(startLabel);
+ const endLabel=document.createElement('label');endLabel.textContent='End ';const end=document.createElement('input');end.type='time';end.value=state.end||'';end.disabled=busy;end.setAttribute('aria-label','End for card '+entry.cardId);endLabel.append(end);fields.append(endLabel);
+ const changedTime=()=>{result.manualStart=start.value;result.manualEnd=end.value;if(validClock(start.value)&&validClock(end.value)&&start.value!==end.value)result.manualNextDay=end.value<start.value;result.reviewed=false;renderDateReview();};start.addEventListener('change',changedTime);end.addEventListener('change',changedTime);
+ const overnightLabel=document.createElement('label'),overnight=document.createElement('input');overnight.type='checkbox';overnight.checked=state.nextDay;overnight.disabled=busy;overnight.setAttribute('aria-label','Ends next day for card '+entry.cardId);overnightLabel.append(overnight,document.createTextNode(' Ends next day'));fields.append(overnightLabel);
+ overnight.addEventListener('change',()=>{result.manualNextDay=overnight.checked;result.reviewed=false;renderDateReview();});
+ article.append(fields);
+ const outcome=document.createElement('p');outcome.className='proposal';outcome.textContent=state.error?'Needs review: '+state.error:(dateDisplay(assignment.date)+' '+state.start+' to '+dateDisplay(state.timing.endDate)+' '+state.end+' (Australia/Sydney clock times; DST conversion not yet performed)');article.append(outcome);
+ const checkLabel=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.checked=!!result.reviewed&&!state.error;check.disabled=busy||!!state.error;check.setAttribute('aria-label','Reviewed card '+entry.cardId);checkLabel.append(check,document.createTextNode(' I checked this date, label, role and both times against the image'));check.addEventListener('change',()=>{result.reviewed=check.checked;renderDateReview();});article.append(checkLabel);
+ const show=document.createElement('button');show.textContent='Show original card '+entry.cardId;show.addEventListener('click',()=>document.getElementById('source-card-'+entry.cardId)?.scrollIntoView({behavior:'smooth',block:'start'}));article.append(show);root.append(article);
+ }
+ el('review-count').textContent=results.length+' card(s); '+dated+' dated; '+reviewed+' manually reviewed. Preview only - nothing has been sent to Google.';
+ el('date-anchor-status').textContent=dateAnchor?'Anchor: card '+dateAnchor.cardId+' = '+dateAnchor.date+'. Check any conflicts below. Manual date overrides are retained.':'No date anchor confirmed. Enter the exact date of one numbered card, or enter individual dates below.';
+}
+anchorDate.addEventListener('input',controls);
+applyAnchor.addEventListener('click',()=>{
+ if(busy||!validDate(anchorDate.value)){el('date-anchor-status').textContent='Enter a valid full date for the chosen numbered card.';return;}
+ const id=Number(anchorSelect.value);if(!results.some(r=>r.card.id===id))return;
+ dateAnchor={cardId:id,date:anchorDate.value,mondayFirst:weekOrder.checked};for(const r of results)r.reviewed=false;renderDateReview();
+});
+
 async function offline(){const label=el('card-offline');if(!('serviceWorker'in navigator)||!import.meta.env.PROD){label.textContent='Offline cache requires the production deployment.';return;}
  try{await navigator.serviceWorker.register(import.meta.env.BASE_URL+'sw.js',{scope:import.meta.env.BASE_URL});await navigator.serviceWorker.ready;const info=await(await fetch(root+'assets.json')).json() as {files:string[]};const cached=await Promise.all(info.files.map(f=>caches.match(root+f)));
  label.textContent=navigator.serviceWorker.controller&&cached.every(Boolean)?'OCR assets cached. Close all app windows and reopen after an update; test this page in airplane mode.':'Offline assets installing. Keep online, then close app windows and reopen.';

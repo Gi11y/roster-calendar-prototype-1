@@ -10,3 +10,5 @@ details{margin-top:18px;border-top:1px solid #dfe7ef;padding-top:14px}summary{cu
 #card-image{max-width:100%;height:auto;border:1px solid #ccd6df}.shift-card{border:1px solid #cdd8e2;border-radius:10px;padding:14px;margin:14px 0;background:#fafcfd}.card-thumb{max-width:100%;max-height:280px;width:auto;object-fit:contain;border:1px solid #bdcad5}.proposal{padding:12px;background:#fff4d8;border-radius:8px;font-weight:650}.shift-card pre{white-space:pre-wrap;overflow-wrap:anywhere}.shift-card h3{margin-top:0}#header-evidence{width:100%}
 
 .card-label-preview{max-width:100%;max-height:160px;width:auto;border:1px solid #b8c7d5;image-rendering:pixelated;background:white}
+
+.date-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}.date-fields input[type=date],.date-fields input[type=time],#anchor-date{font:inherit;max-width:100%;padding:9px;border:1px solid #9babb9;border-radius:7px}.date-row h3{font-size:1rem}#anchor-card{max-width:100%}#date-anchor-status,#review-count{font-weight:650}
