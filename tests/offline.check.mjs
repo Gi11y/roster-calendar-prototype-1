@@ -55,6 +55,12 @@ assert.equal(response,undefined);
 console.log('PASS: online HTML bypasses stale caches, offline HTML retains its complete build, refresh tools bypass service worker.');
 
 assert(stored.includes(root+'swap.html'));
-assert(readFileSync('dist/swap.html','utf8').includes('Swap a shift'));
-assert(html.includes(base+'swap.html?v=0.23.1'));
+assert(readFileSync('dist/swap.html','utf8').includes('Change a shift'));
+assert(html.includes(base+'change.html'));assert(!/href="[^"]*[?&]v=/.test(html));
 console.log('PASS: shift swap page and landing link are included in the offline build.');
+
+assert(stored.includes(root+'change.html'));assert(stored.includes(root+'privacy.html'));assert(stored.includes(root+'install.html'));
+const manifest=JSON.parse(readFileSync('dist/manifest.webmanifest','utf8'));
+assert.equal(manifest.display,'standalone');assert.equal(manifest.start_url,'./');
+for(const icon of manifest.icons){const bytes=readFileSync('dist/'+icon.src);const [w,h]=icon.sizes.split('x').map(Number);assert.equal(bytes.readUInt32BE(16),w);assert.equal(bytes.readUInt32BE(20),h);assert(stored.includes(root+icon.src));}
+console.log('PASS: clean shared links, change/privacy/install pages and installable manifest/icons are cached.');

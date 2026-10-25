@@ -1,0 +1,8 @@
+import{test}from'node:test';import assert from'node:assert/strict';import{readFileSync}from'node:fs';
+import{isDebugUrl,cleanSharedUrl,shouldSuggestInstall}from'../src/coworker-settings.ts';
+test('developer tooling requires the explicit debug=1 flag',()=>{assert.equal(isDebugUrl('https://example.com/'),false);assert.equal(isDebugUrl('https://example.com/?debug=0'),false);assert.equal(isDebugUrl('https://example.com/?debug=1'),true);});
+test('legacy version links become bare without dropping debug or the fragment',()=>{assert.equal(cleanSharedUrl('https://example.com/roster/?v=0.23.1&refresh=123'),'/'+'roster/');assert.equal(cleanSharedUrl('https://example.com/cards.html?v=old&debug=1#review'),'/cards.html?debug=1#review');});
+test('iPhone install hint is once-only and is omitted inside an installed app',()=>{assert.equal(shouldSuggestInstall('iPhone Safari',false,false),true);assert.equal(shouldSuggestInstall('iPhone Safari',false,true),false);assert.equal(shouldSuggestInstall('iPhone Safari',true,false),false);assert.equal(shouldSuggestInstall('Android Chrome',false,false),false);});
+test('diagnostic blocks are hidden in the served HTML before scripts or styles load',()=>{
+ for(const page of ['index.html','cards.html']){const html=readFileSync(page,'utf8');for(const id of ['reader-metric','advanced-tools','calendar-developer-tests','open-recovery-check']){const tag=html.match(new RegExp('<[^>]+id="'+id+'"[^>]*>'))?.[0];assert(tag?.includes('data-debug-only'),id);assert(/\shidden(?:\s|>)/.test(tag),id);}assert(!/href="[^"]*[?&]v=/.test(html));assert(html.includes('change.html'));assert(html.includes('privacy.html'));}
+});

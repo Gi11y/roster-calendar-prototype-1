@@ -79,3 +79,21 @@ test('connection invalidation prevents subsequent writes',async()=>{
  const original=await initial(),s=server([original]),plan=await prepareSwap(s.api,cal,token,original,replacement());let current=true;s.hook(({method})=>{if(method==='POST')current=false;});
  const result=await applySwap(s.api,token,plan,()=>{if(!current)throw Error('Account changed');});assert.equal(result.complete,false);assert(s.writes().every(c=>c.method!=='DELETE'));
 });
+
+import{prepareExtraShift,applyExtraShift}from'../src/shift-swap.ts';
+test('an extra shift is reviewed without writes and added once after confirmation',async()=>{
+ const s=server([]),plan=await prepareExtraShift(s.api,cal,token,replacement());assert.equal(s.writes().length,0);
+ const first=await applyExtraShift(s.api,token,plan);assert.equal(first.complete,true);assert.equal(first.originalRemoved,false);assert.deepEqual(s.writes().map(c=>c.method),['POST']);
+ const again=await applyExtraShift(s.api,token,plan);assert.equal(again.complete,true);assert.equal(s.writes().length,1);
+});
+test('extra shifts never overwrite an occupied date/type or delete another shift',async()=>{
+ const original=await initial(),s=server([original]);await assert.rejects(prepareExtraShift(s.api,cal,token,shift('2030-01-14','A','08:00','16:00')),/already uses/);assert.equal(s.writes().length,0);
+});
+test('extra-shift retries resolve a lost response without duplicating the event',async()=>{
+ const s=server([]),plan=await prepareExtraShift(s.api,cal,token,replacement());s.hook(({method,body,state})=>{if(method==='POST'){state.set(body.id,{...body,etag:'saved',status:'confirmed'});throw Error('Lost response');}});
+ assert.equal((await applyExtraShift(s.api,token,plan)).complete,false);s.hook(()=>{});assert.equal((await applyExtraShift(s.api,token,plan)).complete,true);assert.equal(s.writes().filter(c=>c.method==='POST').length,1);
+});
+test('a removed extra-shift ID stays gated by recovery proof',async()=>{
+ const s=server([]),plan=await prepareExtraShift(s.api,cal,token,replacement());s.state.set(plan.after.id,{id:plan.after.id,status:'cancelled',etag:'d1'});
+ await assert.rejects(prepareExtraShift(s.api,cal,token,replacement()),SwapRecoveryRequired);assert.equal(s.writes().length,0);
+});

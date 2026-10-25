@@ -1,3 +1,4 @@
+import{DEBUG}from'./coworker-ui';
 import {mountCalendarProgress,withCalendarNamesProgress} from './calendar-progress';
 import {ensureRosterCalendar,withCalendarCreationLock,firstTimeCalendarState} from './calendar-create';
 import {applyCalendarChanges,applyEligibility,type ApplyResult,type ApplyOptions} from './calendar-apply';
@@ -46,12 +47,12 @@ export function mountCalendarReview(){
   if(apply){
    const action=applyActionState(reviewedPlan,hasComparison,connected,verified,busy,!!pending,applying,applyResult,applyOptions());
    apply.hidden=action.hidden;apply.disabled=action.disabled;apply.textContent=action.label;
-   el('calendar-apply-hint').textContent=action.reason;
+   el('calendar-apply-hint').textContent=!DEBUG&&reviewedPlan?.some(c=>c.kind==='restore')?'A previously removed shift needs help to restore. Contact the person who shared this app.':action.reason;
    const removalCount=reviewedPlan?.filter(c=>c.kind==='removed').length||0,recoveryCount=reviewedPlan?.filter(c=>c.kind==='restore').length||0;
    el('calendar-removal-confirmation').hidden=!removalCount;
    if(removalApproval)removalApproval.disabled=busy;
    el('calendar-removal-label').textContent='Remove the '+removalCount+' listed '+(removalCount===1?'shift':'shifts')+' from this Roster calendar. I checked the complete roster period.';
-   el('open-recovery-check').hidden=!recoveryCount||!!recoveryProof;
+   el('open-recovery-check').hidden=!DEBUG||!recoveryCount||!!recoveryProof;
    el<HTMLButtonElement>('open-recovery-check').disabled=busy;
 
   }
@@ -72,7 +73,7 @@ export function mountCalendarReview(){
    if(picker){picker.disabled=busy||!!pending||!storageReady;picker.value=verified&&calendarId?calendarId:'';}
    el<HTMLButtonElement>('refresh-calendar-list').disabled=busy||!connected||!listAllowed;
    if(showPicker)el('review-destination').hidden=true;
-   el('open-calendar-settings').textContent='Use an existing calendar';el('open-calendar-settings').hidden=stage!=='select'||showPicker;el<HTMLButtonElement>('open-calendar-settings').disabled=busy||!storageReady;
+   el('open-calendar-settings').textContent='Use an existing calendar';el('open-calendar-settings').hidden=!DEBUG||stage!=='select'||showPicker;el<HTMLButtonElement>('open-calendar-settings').disabled=busy||!storageReady;
    compare.hidden=stage!=='compare'&&stage!=='results';compare.textContent=applying?'Saving…':busy?'Checking…':hasComparison?'Check again':'Check calendar';
    el('calendar-account-actions').hidden=!connected;el<HTMLButtonElement>('review-reconnect').disabled=busy;
    el('calendar-step-title').textContent=createdReady&&stage==='compare'?'Roster calendar ready ✓':applyResult?(applyResult.complete?'Shifts saved':'Some shifts need attention'):stage==='connect'?'Connect Google':stage==='select'?'Choose your Roster calendar':stage==='compare'?'Ready to compare':lastCounts&&(lastCounts.conflict)>0?'Some shifts need review':lastCounts&&(lastCounts.new+lastCounts.changed+lastCounts.removed+lastCounts.restore)>0?(lastCounts.new+lastCounts.changed+lastCounts.removed+lastCounts.restore)+' changes found':'Already up to date';
@@ -84,7 +85,7 @@ export function mountCalendarReview(){
    }
    if(loadingCalendarNames){el('calendar-step-title').textContent='Google connected';el('calendar-step-copy').textContent='Finding your Roster calendar.';}
    el('calendar-cleanup-notice').hidden=!pending||busy;
-   if(pending&&!busy){openOptions();el<HTMLDetailsElement>('calendar-developer-tests').open=true;el<HTMLDetailsElement>('calendar-probe-details').open=true;}
+   if(DEBUG&&pending&&!busy){openOptions();el<HTMLDetailsElement>('calendar-developer-tests').open=true;el<HTMLDetailsElement>('calendar-probe-details').open=true;}
   }
  }
  function clearToken(){loadingCalendarNames=false;operationProgress.stop();listReady=false;createdReady=false;recoveryProof=undefined;listAllowed=false;choices=[];renderChoices();token=undefined;deadline=0;clearTimeout(timer);verified=false;epoch++;invalidate();refresh();}
@@ -135,7 +136,7 @@ export function mountCalendarReview(){
       try{await loadChoices(connectionEpoch);}catch(error){notice+=' Calendar list: '+errorText(error);}
      },setCalendarNamesLoading);
      if(minimal&&listAllowed&&!choices.length&&!notice)notice='';
-     if(minimal&&!listAllowed)notice+=' Calendar-list permission was not granted. Use Options to enter the calendar ID, or reconnect to grant it.';
+     if(minimal&&!listAllowed)notice+=DEBUG?' Calendar-list permission was not granted. Use Options to enter the calendar ID, or reconnect to grant it.':' Reconnect Google and allow calendar access so we can find your Roster calendar.';
      say(minimal?notice:verified?'Google connected. Existing Roster calendar verified. Comparison is read only.':'Google connected. Enter your existing Roster calendar ID below.');
     }catch(error){say('Connection/calendar check: '+errorText(error));}
     finally{busy=false;refresh();}
@@ -242,10 +243,10 @@ export function mountCalendarReview(){
   }
  }
  removalApproval?.addEventListener('change',refresh);
- if(minimal)el('open-recovery-check').addEventListener('click',()=>{openOptions();el<HTMLDetailsElement>('calendar-developer-tests').open=true;el<HTMLDetailsElement>('calendar-probe-details').open=true;consent.focus();});
+ if(minimal&&DEBUG)el('open-recovery-check').addEventListener('click',()=>{openOptions();el<HTMLDetailsElement>('calendar-developer-tests').open=true;el<HTMLDetailsElement>('calendar-probe-details').open=true;consent.focus();});
  consent.addEventListener('change',refresh);
  probe.addEventListener('click',async()=>{
-  if(busy||!consent.checked||!verified||!calendarId||pending)return;
+  if(!DEBUG||busy||!consent.checked||!verified||!calendarId||pending)return;
   recoveryProof=undefined;invalidate();busy=true;refresh();const connectionEpoch=epoch,destination=calendarId;
   const bytes=crypto.getRandomValues(new Uint8Array(32)),id=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
   pending={calendarId:destination,id};el('probe-status').textContent='Running synthetic test '+id+'. Please keep this page open.';
@@ -258,7 +259,7 @@ export function mountCalendarReview(){
   finally{consent.checked=false;busy=false;refresh();}
  });
  cleanup.addEventListener('click',async()=>{
-  if(busy||!pending||calendarId!==pending.calendarId||!verified)return;
+  if(!DEBUG||busy||!pending||calendarId!==pending.calendarId||!verified)return;
   busy=true;refresh();const job=pending,connectionEpoch=epoch;
   try{await cleanupProbe(guardedApi(connectionEpoch),job.calendarId,requireToken(),job.id);pending=undefined;el('probe-status').textContent='Synthetic test event cleanup completed. No real roster event was changed.';}catch(error){el('probe-status').textContent='Cleanup stopped: '+errorText(error)+'. Find "'+PROBE_TITLE+'" in the selected Roster calendar if manual cleanup is needed. ID: '+job.id;}finally{busy=false;refresh();}
  });

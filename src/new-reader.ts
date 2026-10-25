@@ -1,3 +1,5 @@
+import{DEBUG,mountInstallHint}from'./coworker-ui';
+import{shiftFinish}from'./manual-shift-time';
 import {proposeRosterCrop,scaleCrop,clampCrop,excludedCards} from './roster-crop';
 import './style.css';
 import {timeInk} from './time-image';
@@ -28,7 +30,7 @@ let source:HTMLCanvasElement|undefined,cards:Card[]=[],grid:Grid|undefined,busy=
 interface Result {card:Card;label?:string;confidence?:number;text:string;day?:string;error?:string;labelPreview?:HTMLCanvasElement;labelNote?:string;timeText?:string;timeReason?:string;timeWarning?:string;timePreview?:HTMLCanvasElement;manualDate?:string;manualStart?:string;manualEnd?:string;manualNextDay?:boolean;reviewed?:boolean}
 type Phase='start'|'crop'|'reading'|'review'|'calendar';
 let phase:Phase='start';const editingCards=new Set<number>();
-function showPhase(next:Phase,focus=false){phase=next;for(const [id,value] of [['start-screen','start'],['crop-screen','crop'],['reading-screen','reading'],['date-review','review'],['calendar-screen','calendar']])el(id).hidden=next!==value;el('advanced-tools').hidden=next==='start'||next==='crop'||next==='reading';if(focus)document.querySelector<HTMLElement>('#'+(next==='crop'?'crop-screen':next==='review'?'date-review':'calendar-screen')+' h1')?.focus({preventScroll:false});}
+function showPhase(next:Phase,focus=false){phase=next;for(const [id,value] of [['start-screen','start'],['crop-screen','crop'],['reading-screen','reading'],['date-review','review'],['calendar-screen','calendar']])el(id).hidden=next!==value;el('advanced-tools').hidden=!DEBUG||next==='start'||next==='crop'||next==='reading';if(focus)document.querySelector<HTMLElement>('#'+(next==='crop'?'crop-screen':next==='review'?'date-review':'calendar-screen')+' h1')?.focus({preventScroll:false});}
 function flowMessage(message:string){el('flow-message').textContent=message;el('flow-message').hidden=!message;}
 el('cancel-reading').addEventListener('click',()=>clear());
 el('change-screenshot').addEventListener('click',()=>file.click());
@@ -244,7 +246,7 @@ function reviewState(result:Result,assigned:AssignedDate|undefined){
  const start=result.manualStart??(unresolved?undefined:p.range?.start),end=result.manualEnd??(unresolved?undefined:p.range?.end),nextDay=result.manualNextDay??p.range?.nextDay??false;
  const timing=reviewTiming(assigned?.date,start,end,nextDay);
  const zoned=sydneyRange(assigned?.date,start,end,nextDay);
- const error=(unresolved?result.timeWarning:undefined)||timing.error||zoned.error||(!result.label?'Confirm the shift label in Card OCR details.':result.card.colour==='uncertain'?'Confirm the staff role/colour in Card OCR details.':result.error?'OCR reported an error; inspect the card.':undefined);
+ const error=(unresolved?result.timeWarning:undefined)||timing.error||zoned.error||(!result.label?'Choose the shift type in Edit shift.':result.card.colour==='uncertain'?'Choose the staff role in Edit shift.':result.error?'We could not read this card clearly. Check its details.':undefined);
  return{p,start,end,nextDay,timing,zoned,error};
 }
 function renderDateReview(){
@@ -262,7 +264,7 @@ function renderDateReview(){
  const hours=document.createElement('span');hours.className='shift-hours';hours.textContent=state.start&&state.end?state.start+'–'+state.end:'Check times';top.append(heading,hours);copy.append(top);
  const role=document.createElement('p');role.className='shift-role';const name=result.label==='A'?'Morning':result.label==='P'?'Afternoon':result.label==='N'||result.label==='N10'?'Night':'Shift type needed';role.textContent=name+' · '+(result.card.colour==='light'?'Educator':result.card.colour==='dark'?'Floor staff':'Role needed');copy.append(role);
  if(!result.reviewed&&!result.timeWarning&&state.p.range&&result.manualStart===undefined&&result.manualEnd===undefined&&state.p.basis.startsWith('Inferred')){const basis=document.createElement('p');basis.className='shift-overnight';basis.textContent='Default hours · check against screenshot';copy.append(basis);}
- if(state.nextDay){const overnight=document.createElement('p');overnight.className='shift-overnight';overnight.textContent='Ends next day';copy.append(overnight);}
+ if(state.nextDay){const overnight=document.createElement('p');overnight.className='shift-overnight';overnight.textContent=assignment.date&&state.start&&state.end?shiftFinish(assignment.date,state.start,state.end,true).text:'Ends next day';copy.append(overnight);}
  const checkLabel=document.createElement('label');checkLabel.className='round-confirm';const check=document.createElement('input');check.type='checkbox';check.checked=!!result.reviewed&&!state.error;check.disabled=busy||!!state.error;check.setAttribute('aria-label','Reviewed card '+entry.cardId);const mark=document.createElement('span');mark.className='checkmark';mark.setAttribute('aria-hidden','true');checkLabel.append(check,mark);
  check.addEventListener('change',()=>{result.reviewed=check.checked;renderDateReview();document.querySelector<HTMLInputElement>('[aria-label="Reviewed card '+entry.cardId+'"]')?.focus({preventScroll:true});});
  const toggle=document.createElement('button');toggle.className='row-edit';toggle.type='button';toggle.setAttribute('aria-label','Edit shift for card '+entry.cardId);toggle.setAttribute('aria-expanded',String(editingCards.has(entry.cardId)));toggle.setAttribute('aria-controls','shift-editor-'+entry.cardId);
@@ -288,7 +290,7 @@ function renderDateReview(){
  startInput.addEventListener('change',changedTime);endInput.addEventListener('change',changedTime);
  const overnightLabel=document.createElement('label'),overnight=document.createElement('input');overnight.type='checkbox';overnight.checked=state.nextDay;overnight.disabled=busy;overnight.setAttribute('aria-label','Ends next day for card '+entry.cardId);overnightLabel.append(overnight,document.createTextNode(' Ends next day'));fields.append(overnightLabel);
  overnight.addEventListener('change',()=>{result.manualNextDay=overnight.checked;result.reviewed=false;renderDateReview();});editor.append(fields);
- const evidence=document.createElement('p');evidence.className='small';evidence.textContent=assignment.basis+(assignment.warning?'. '+assignment.warning:'')+'. '+(result.manualStart!==undefined||result.manualEnd!==undefined?'Times manually edited.':state.p.basis)+'. All times Australia/Sydney.';editor.append(evidence);
+ const evidence=document.createElement('p');evidence.className='small';evidence.textContent=DEBUG?assignment.basis+(assignment.warning?'. '+assignment.warning:'')+'. '+(result.manualStart!==undefined||result.manualEnd!==undefined?'Times manually edited.':state.p.basis)+'. All times Australia/Sydney.':'Check the date and hours against your roster. Sydney time.';editor.append(evidence);
  if(assignment.candidate){const use=document.createElement('button');use.textContent='Use proposed '+assignment.candidate;use.disabled=busy;use.addEventListener('click',()=>{result.manualDate=assignment.candidate;result.reviewed=false;renderDateReview();});editor.append(use);}
  article.append(editor);root.append(article);
  }
@@ -351,3 +353,5 @@ async function offline(){const label=el('card-offline');if(!('serviceWorker'in n
  label.textContent=navigator.serviceWorker.controller&&cached.every(Boolean)?'OCR assets cached. Close all app windows and reopen after an update; test this page in airplane mode.':'Offline assets installing. Keep online, then close app windows and reopen.';
  }catch{label.textContent='Offline readiness not confirmed. Reconnect and check again.';}}
 el('card-offline-check').addEventListener('click',()=>void offline());navigator.serviceWorker?.addEventListener('controllerchange',()=>void offline());void offline();controls();showPhase('start');
+
+mountInstallHint();

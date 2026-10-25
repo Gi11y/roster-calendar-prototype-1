@@ -28,7 +28,7 @@ export function planComparison(approved:ApprovedEvent[],remote:RemoteEvent[],cov
  const output:Comparison[]=approved.map(after=>{
   const before=existing.get(after.id);
   if(!before)return{kind:'new',id:after.id,after,reason:'No event with this stable ID was found.'};
-  if(before.status==='cancelled')return{kind:'restore',id:after.id,before,after,reason:'This stable ID was deleted. Recovery must be validated before any write.'};
+  if(before.status==='cancelled')return{kind:'restore',id:after.id,before,after,reason:'This shift was removed previously. It needs help to restore.'};
   if(!managed(before)||before.recurrence||before.recurringEventId||before.attendees?.length||before.locked||(before.eventType&&before.eventType!=='default')||['rosterDate','rosterType','rosterOrdinal'].some(key=>before.extendedProperties?.private?.[key]!==after.extendedProperties.private[key as keyof ApprovedEvent['extendedProperties']['private']]))return{kind:'conflict',id:after.id,before,after,reason:'An existing event has this ID but is not a simple event managed by this importer. It will not be overwritten.'};
   return{kind:sameEvent(before,after)?'unchanged':'changed',id:after.id,before,after,reason:sameEvent(before,after)?'The approved fields already match.':'Approved title, times, description or reminder differ.'};
  });

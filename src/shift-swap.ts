@@ -30,7 +30,7 @@ function recoveryCheck(target:RemoteEvent,after:ApprovedEvent,calendarId:string,
  if(protectedEvent(target))throw Error('This deleted shift is protected and cannot be restored.');
  const p=target.extendedProperties?.private;
  if(p&&Object.entries(after.extendedProperties.private).some(([key,value])=>key!=='rosterSwapId'&&p[key]!==undefined&&p[key]!==value))throw Error('The deleted replacement has a different importer identity.');
- if(!recovery||recovery.calendarId!==calendarId)throw new SwapRecoveryRequired('This replacement was deleted previously. Run the recovery check below, then review the swap again.');
+ if(!recovery||recovery.calendarId!==calendarId)throw new SwapRecoveryRequired('This shift was removed previously and needs help to restore.');
  if(recovery.strategy==='patch'&&!target.etag)throw Error('Google did not provide a version tag for the deleted replacement. It cannot be safely restored here.');
 }
 export async function prepareSwap(api:CalendarReadApi,calendarId:string,token:string,selected:RemoteEvent,replacement?:ReviewedShift,reminder:number|null=null,recovery?:ApplyOptions['recovery'],assertCurrent:()=>void=()=>{}):Promise<SwapPlan>{
@@ -95,4 +95,34 @@ export async function applySwap(api:CalendarReadApi,token:string,reviewed:SwapPl
   const remaining=await get(api,path,token,plan.old.id);assertCurrent();if(remaining&&remaining.status!=='cancelled')throw Error('Google did not confirm removal of the original.');
   progress({phase:'saving',completed:total,total});return{complete:true,replacementSaved,originalRemoved:true,detail:after?'Replacement saved and original shift removed.':'Selected shift removed.'};
  }catch(error){return{complete:false,replacementSaved,originalRemoved:false,detail:(replacementSaved?'The replacement is saved. The original may still be present. ':'')+(error instanceof Error?error.message:'Google could not complete this change.')+(attempted?' A request may have reached Google. Review or retry this same change before starting another.':' No change was sent.')};}
+}
+
+export interface ExtraShiftPlan{kind:'extra';calendarId:string;after:ApprovedEvent;target?:RemoteEvent}
+function extraMatches(e:RemoteEvent|undefined,after:ApprovedEvent):boolean{return!!e&&planComparison([after],[e])[0].kind==='unchanged';}
+export async function prepareExtraShift(api:CalendarReadApi,calendarId:string,token:string,draft:ReviewedShift,reminder:number|null=null,recovery?:ApplyOptions['recovery'],assertCurrent:()=>void=()=>{}):Promise<ExtraShiftPlan>{
+ const after=(await prepareEvents([{...draft,reviewed:true}],reminder))[0].event;
+ assertCurrent();await verifyRosterCalendar(api,calendarId,token);assertCurrent();
+ const target=await get(api,'/calendars/'+encodeURIComponent(calendarId)+'/events',token,after.id);assertCurrent();
+ if(target?.status==='cancelled')recoveryCheck(target,after,calendarId,recovery);
+ else if(target&&!extraMatches(target,after))throw Error('A shift already uses this date and shift type. Choose Replace a shift to change it.');
+ return{kind:'extra',calendarId,after,target};
+}
+export async function applyExtraShift(api:CalendarReadApi,token:string,reviewed:ExtraShiftPlan,assertCurrent:()=>void=()=>{},progress:(p:CalendarProgress)=>void=()=>{},recovery?:ApplyOptions['recovery']):Promise<SwapResult>{
+ const plan=structuredClone(reviewed),after=plan.after,path='/calendars/'+encodeURIComponent(plan.calendarId)+'/events';let attempted=false;
+ try{
+  const p=after.extendedProperties?.private;if(!p||p.rosterImporter!==OWNER_MARKER||after.id!==await stableEventId(p.rosterDate,p.rosterType,Number(p.rosterOrdinal)))throw Error('The reviewed shift is invalid. Review it again.');
+  assertCurrent();progress({phase:'validating',completed:0,total:1});await verifyRosterCalendar(api,plan.calendarId,token);assertCurrent();
+  let target=await get(api,path,token,after.id);assertCurrent();
+  if(extraMatches(target,after))return{complete:true,replacementSaved:true,originalRemoved:false,detail:'This shift is already in your Roster calendar. No duplicate was added.'};
+  if(target?.status==='cancelled'){
+   recoveryCheck(target,after,plan.calendarId,recovery);
+   if(recovery!.strategy==='patch'&&target.etag!==plan.target?.etag)throw Error('This removed shift changed since review. Review it again.');
+  }else if(target)throw Error('Another shift now uses this date and shift type. It was not overwritten.');
+  else if(plan.target)throw Error('The calendar changed since review. Review this shift again.');
+  assertCurrent();progress({phase:'saving',completed:0,total:1});attempted=true;
+  if(target?.status==='cancelled'&&recovery!.strategy==='patch')await api(path+'/'+after.id,token,'PATCH',{...body(after,target),status:'confirmed'},target.etag);
+  else try{await api(path,token,'POST',{id:after.id,...body(after)});}catch(error){if(!isStatus(error,409))throw error;}
+  assertCurrent();target=await get(api,path,token,after.id);assertCurrent();if(!extraMatches(target,after))throw Error('Google did not confirm the new shift. Check your calendar before trying again.');
+  progress({phase:'saving',completed:1,total:1});return{complete:true,replacementSaved:true,originalRemoved:false,detail:'Extra shift added to your Roster calendar.'};
+ }catch(error){return{complete:false,replacementSaved:false,originalRemoved:false,detail:(error instanceof Error?error.message:'The shift could not be saved.')+(attempted?' A request may have reached Google. Retry this same change before starting another.':' No change was sent.')};}
 }
