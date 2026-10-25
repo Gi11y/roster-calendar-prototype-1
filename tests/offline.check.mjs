@@ -28,3 +28,8 @@ assert(stored.includes(root+'google-test.html'));
 assert(html.includes('Add your roster'));
 assert(readFileSync('dist/google-test.html','utf8').includes('id="auth"'));
 console.log('PASS: new upload landing and preserved Google test both precached.');
+
+response=undefined;
+handlers.fetch({request:{method:'GET',url:root+'cards.html?v=0.12',mode:'navigate'},respondWith(p){response=p;}});
+assert.equal(await (await response).text(),'cached');
+console.log('PASS: versioned review navigation works offline.');
