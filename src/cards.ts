@@ -57,7 +57,7 @@ function crop(x:number,y:number,width:number,height:number,mode='original',scale
  if(mode==='threshold'){const pixels=ctx.getImageData(0,0,c.width,c.height),d=pixels.data;for(let i=0;i<d.length;i+=4){const v=.299*d[i]+.587*d[i+1]+.114*d[i+2]>=85?255:0;d[i]=d[i+1]=d[i+2]=v;}ctx.putImageData(pixels,0,0);}return c;
 }
 
-function labelFrames(card:Card):{normal:HTMLCanvasElement;binary:HTMLCanvasElement;multiple:boolean;shape?:LabelReading;diagnostic:string;bottom:number}|undefined{
+function labelFrames(card:Card):{normal:HTMLCanvasElement;binary:HTMLCanvasElement;mask:HTMLCanvasElement;multiple:boolean;shape?:LabelReading;diagnostic:string;bottom:number}|undefined{
  const unit=Math.max(.65,Math.min(3,card.width/90));
  const region=crop(card.x+2*unit,card.y+2*unit,Math.min(45*unit,card.width-4*unit),Math.min(24*unit,Math.max(20*unit,card.height*.35)),'original',1),ctx=region.getContext('2d',{willReadFrequently:true})!,pixels=ctx.getImageData(0,0,region.width,region.height);
  const isolated=isolateLabel(pixels.data,region.width,region.height,card.rgb);if(!isolated)return;
@@ -65,7 +65,8 @@ function labelFrames(card:Card):{normal:HTMLCanvasElement;binary:HTMLCanvasEleme
  function frame(binary:boolean){const raw=document.createElement('canvas');raw.width=b.width;raw.height=b.height;const small=raw.getContext('2d')!,out=small.createImageData(b.width,b.height);
  for(let y=0;y<b.height;y++)for(let x=0;x<b.width;x++){const src=((b.y+y)*region.width+b.x+x)*4,dst=(y*b.width+x)*4;const lum=.299*pixels.data[src]+.587*pixels.data[src+1]+.114*pixels.data[src+2];const v=binary?(isolated!.lightInk?(lum>Math.min(245,bg+45)?0:255):(lum<bg*.74?0:255)):Math.max(0,Math.min(255,Math.round(isolated!.lightInk?255-(lum-bg)/(255-bg)*255:(lum-bg*.1)/(bg*.9)*255)));out.data[dst]=out.data[dst+1]=out.data[dst+2]=v;out.data[dst+3]=255;}
  small.putImageData(out,0,0);const canvas=document.createElement('canvas');canvas.width=b.width*8+32;canvas.height=b.height*8+32;const large=canvas.getContext('2d')!;large.fillStyle='#fff';large.fillRect(0,0,canvas.width,canvas.height);large.imageSmoothingEnabled=!binary;large.drawImage(raw,16,16,b.width*8,b.height*8);return canvas;}
- return{normal:frame(false),binary:frame(true),multiple:isolated.components>1,bottom:Math.floor(card.y+2*unit)+b.y+b.height-2,shape:pGlyphEvidence(isolated),diagnostic:pGlyphCheck(isolated).reason+' '+JSON.stringify(pGlyphCheck(isolated).metrics||{})};
+ const exact=document.createElement('canvas');exact.width=b.width;exact.height=b.height;const ec=exact.getContext('2d')!,ed=ec.createImageData(b.width,b.height);for(let y=0;y<b.height;y++)for(let x=0;x<b.width;x++){const i=(y*b.width+x)*4,v=isolated.mask[(b.y+y)*region.width+b.x+x]?0:255;ed.data[i]=ed.data[i+1]=ed.data[i+2]=v;ed.data[i+3]=255;}ec.putImageData(ed,0,0);const mask=document.createElement('canvas');mask.width=b.width*5+24;mask.height=b.height*5+24;const mc=mask.getContext('2d')!;mc.fillStyle='#fff';mc.fillRect(0,0,mask.width,mask.height);mc.imageSmoothingEnabled=false;mc.drawImage(exact,12,12,b.width*5,b.height*5);
+ return{normal:frame(false),binary:frame(true),mask,multiple:isolated.components>1,bottom:Math.floor(card.y+2*unit)+b.y+b.height-2,shape:pGlyphEvidence(isolated),diagnostic:pGlyphCheck(isolated).reason+' '+JSON.stringify(pGlyphCheck(isolated).metrics||{})};
 }
 
 function render(){list.replaceChildren();for(const result of results){
@@ -100,7 +101,15 @@ read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;s
  await current.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:'',preserve_interword_spaces:'1'});
  const full=await current.recognize(crop(c.x-2,c.y-2,c.width+4,c.height+4),{},{text:true,tsv:true});if(job!==generation)return;result.text=full.data.text;result.timeText=shiftTextOnly(full.data.text);
  const fullWords=parseTsv(full.data.tsv||'');readings.push({label:labelFromText(full.data.text),confidence:fullWords[0]?.confidence||0,source:'full card',rawText:full.data.text.trim().split(String.fromCharCode(10))[0],detail:!labelFromText(full.data.text)?'First line did not match a valid label':'Full-card candidate'});
- const decision=chooseLabel(readings);result.label=decision.label;result.confidence=decision.confidence;result.labelNote=decision.label==='P'&&frames?.shape?'P-shaped upper loop and lower stem support this label. Verify the enlarged crop.':decision.reason;
+ let decision=chooseLabel(readings);
+ if(!decision.label&&frames){
+  for(const [name,canvas,mode] of [['retry raw line',frames.normal,'13'],['retry word',frames.binary,'8'],['retry exact glyph mask',frames.mask,frames.multiple?'8':'10']] as const){
+   await current.setParameters({tessedit_pageseg_mode:mode,tessedit_char_whitelist:'APN10',user_defined_dpi:'300'});
+   const retry=await current.recognize(canvas,{},{text:true,tsv:true});if(job!==generation)return;const tokens=parseTsv(retry.data.tsv||'');readings.push({label:labelFromText(retry.data.text),confidence:tokens.length?Math.min(...tokens.map(w=>w.confidence)):0,source:name,rawText:retry.data.text,detail:'Targeted retry for an uncertain label; not a guessed shift.'});
+  }
+  decision=chooseLabel(readings);
+ }
+result.label=decision.label;result.confidence=decision.confidence;result.labelNote=decision.label==='P'&&frames?.shape?'P-shaped upper loop and lower stem support this label. Verify the enlarged crop.':decision.reason;
  result.text+='\nLabel readings: '+readings.map(r=>r.source+' = '+(r.label||'?')+' ('+r.confidence.toFixed(1)+'); raw '+JSON.stringify(r.rawText??'')+'; '+(r.detail||'')).join('\n');
  result.text+='\nGlyph isolation: '+(frames?frames.diagnostic:'No connected label crop found.');
 

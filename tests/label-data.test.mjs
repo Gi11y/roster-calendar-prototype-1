@@ -22,3 +22,13 @@ test('A, N and closed-box shapes never get P evidence',()=>{for(const rows of [[
 import {pGlyphCheck} from '../src/label-data.ts';
 test('P bowl extending into the lower 40 percent is not mistaken for a lower right leg',()=>{const p=glyph(['1111100','1111110','1100111','1100111','1111110','1111110','1100000','1100000','1100000']);const check=pGlyphCheck(p);assert.equal(check.reading?.label,'P');assert.equal(check.metrics.lowerRightInk,0);});
 test('rejection diagnostics explain why unsupported glyphs fail',()=>{assert.match(pGlyphCheck(undefined).reason,/No isolated glyph/);const a=glyph(['00100','01110','11011','11011','11111','11011','11011']);assert.match(pGlyphCheck(a).reason,/rejected/);});
+
+test('two distinct high scoring sources can resolve a single moderate misread',()=>{assert.equal(chooseLabel([{label:'P',confidence:93,source:'shape'},{label:'P',confidence:95,source:'retry'},{label:'A',confidence:67,source:'original'}]).label,'P');});
+test('one contour score, duplicated source, multiple conflicts or strong competing labels cannot override review',()=>{
+ for(const readings of [
+ [{label:'P',confidence:93,source:'shape'},{label:'A',confidence:67,source:'original'}],
+ [{label:'P',confidence:93,source:'same'},{label:'P',confidence:95,source:'same'},{label:'A',confidence:67,source:'original'}],
+ [{label:'P',confidence:93,source:'shape'},{label:'P',confidence:95,source:'retry'},{label:'A',confidence:87,source:'original'}],
+ [{label:'P',confidence:93,source:'shape'},{label:'P',confidence:95,source:'retry'},{label:'A',confidence:67,source:'a'},{label:'N',confidence:65,source:'n'}]
+ ])assert.equal(chooseLabel(readings).label,undefined);
+});
