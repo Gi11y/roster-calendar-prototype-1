@@ -1,5 +1,5 @@
 import {dayCell,type Card,type Grid} from './card-data.ts';
-export interface DateAnchor {cardId:number;date:string;mondayFirst:boolean}
+export interface DateAnchor {cardId:number;date:string;mondayFirst:boolean;source?:'auto'|'manual'}
 export interface DateCard {card:Card;day?:string;manualDate?:string}
 export interface AssignedDate {cardId:number;date?:string;candidate?:string;basis:string;warning?:string}
 export function validDate(value:string|undefined):value is string{
@@ -28,12 +28,12 @@ export function associateDates(items:DateCard[],grid:Grid|undefined,anchor:DateA
   if(item.manualDate!==undefined){return validDate(item.manualDate)?{cardId:item.card.id,date:item.manualDate,basis:'Date entered manually - confirm against screenshot'}:{cardId:item.card.id,basis:'Needs date review',warning:'The manually entered date is invalid.'};}
   if(!anchor||!selected)return{cardId:item.card.id,basis:'Needs date review',warning:'Choose one numbered card and confirm its exact date.'};
   if(anchorProblem)return{cardId:item.card.id,basis:'Needs date review',warning:anchorProblem};
-  if(item.card.id===anchor.cardId)return{cardId:item.card.id,date:anchor.date,basis:'User-confirmed anchor card'};
+  if(item.card.id===anchor.cardId)return{cardId:item.card.id,date:anchor.date,basis:anchor.source==='auto'?'Automatically detected anchor - review':'User-confirmed anchor card'};
   const target=position(item.card,grid);
   if(!origin||!target)return{cardId:item.card.id,basis:'Needs date review',warning:'Grid row or column is uncertain. Enter this date manually.'};
   let candidate:string;try{candidate=addDays(anchor.date,(target.row-origin.row)*7+target.column-origin.column);}catch{return{cardId:item.card.id,basis:'Needs date review',warning:'The proposed date is outside the supported range.'};}
   if(item.day&&Number(item.day)!==Number(candidate.slice(-2)))return{cardId:item.card.id,candidate,basis:'Date conflict - check image',warning:'Grid proposes '+candidate+' but OCR read day '+item.day+'. No date was assigned.'};
-  return{cardId:item.card.id,date:candidate,basis:'Inferred from confirmed anchor and grid - review'+(item.day?' (day OCR agrees)':' (day OCR unavailable)')};
+  return{cardId:item.card.id,date:candidate,basis:(anchor.source==='auto'?'Inferred from detected header and grid - review':'Inferred from confirmed anchor and grid - review')+(item.day?' (day OCR agrees)':' (day OCR unavailable)')};
  });
 }
 export function validClock(value:string|undefined):value is string{return !!value&&/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);}

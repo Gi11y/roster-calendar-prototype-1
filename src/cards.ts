@@ -1,6 +1,7 @@
 import './style.css';
 import {detectCards,findGrid,dayCell,labelFromText,proposal,type Card,type Grid,type Colour} from './card-data';
 import {parseTsv} from './ocr-data';
+import {inferDateAnchor,weekdayBand} from './auto-dates';
 import {associateDates,validDate,validClock,reviewTiming,sortReview,type DateAnchor,type AssignedDate} from './date-review';
 import {shiftTextOnly,planTimeBand} from './card-content';
 import {isolateLabel,chooseLabel,pGlyphEvidence,pGlyphCheck,type LabelReading} from './label-data';
@@ -11,12 +12,14 @@ const el=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 const file=el<HTMLInputElement>('card-file'),detect=el<HTMLButtonElement>('detect-cards'),read=el<HTMLButtonElement>('read-cards'),view=el<HTMLCanvasElement>('card-image'),status=el('card-status'),progress=el<HTMLProgressElement>('card-progress'),list=el('card-results'),header=el<HTMLTextAreaElement>('header-evidence');
 const anchorSelect=el<HTMLSelectElement>('anchor-card'),anchorDate=el<HTMLInputElement>('anchor-date'),weekOrder=el<HTMLInputElement>('week-order'),applyAnchor=el<HTMLButtonElement>('apply-anchor');
 let dateAnchor:DateAnchor|undefined;
+let anchorSource:'auto'|'manual'|undefined;let dateExplanation='Read the cards to detect dates automatically.';
+const retryDates=el<HTMLButtonElement>('detect-dates'),anchorControls=el<HTMLDetailsElement>('anchor-controls');
 const root=new URL(import.meta.env.BASE_URL+'ocr-assets/',location.origin).href;
 let source:HTMLCanvasElement|undefined,cards:Card[]=[],grid:Grid|undefined,busy=false,generation=0,worker:Worker|undefined;
 interface Result {card:Card;label?:string;confidence?:number;text:string;day?:string;error?:string;labelPreview?:HTMLCanvasElement;labelNote?:string;timeText?:string;timeReason?:string;manualDate?:string;manualStart?:string;manualEnd?:string;manualNextDay?:boolean;reviewed?:boolean}
 let results:Result[]=[];let script:Promise<Engine>|undefined;
-function controls(){anchorSelect.disabled=busy;anchorDate.disabled=busy;weekOrder.disabled=busy;applyAnchor.disabled=busy||!results.length||!validDate(anchorDate.value);file.disabled=busy;detect.disabled=busy||!source;read.disabled=busy||!cards.length;}
-function clear(){dateAnchor=undefined;anchorDate.value='';weekOrder.checked=false;anchorSelect.replaceChildren();el('date-results').replaceChildren();el('review-count').textContent='';el('date-anchor-status').textContent='No date anchor confirmed.';generation++;void worker?.terminate();worker=undefined;if(source){source.width=1;source.height=1;}source=undefined;cards=[];results=[];grid=undefined;view.width=view.height=1;list.replaceChildren();header.value='';el('card-count').textContent='';el('grid-status').textContent='No grid detected yet.';busy=false;progress.value=0;file.value='';controls();}
+function controls(){retryDates.disabled=busy||!results.length||!header.value.trim();anchorSelect.disabled=busy;anchorDate.disabled=busy;weekOrder.disabled=busy;applyAnchor.disabled=busy||!results.length||!validDate(anchorDate.value);file.disabled=busy;detect.disabled=busy||!source;read.disabled=busy||!cards.length;}
+function clear(){anchorSource=undefined;dateExplanation='Read the cards to detect dates automatically.';el('auto-date-status').textContent=dateExplanation;anchorControls.open=false;dateAnchor=undefined;anchorDate.value='';weekOrder.checked=false;anchorSelect.replaceChildren();el('date-results').replaceChildren();el('review-count').textContent='';el('date-anchor-status').textContent='No date anchor confirmed.';generation++;void worker?.terminate();worker=undefined;if(source){source.width=1;source.height=1;}source=undefined;cards=[];results=[];grid=undefined;view.width=view.height=1;list.replaceChildren();header.value='';el('card-count').textContent='';el('grid-status').textContent='No grid detected yet.';busy=false;progress.value=0;file.value='';controls();}
 el('clear-cards').addEventListener('click',()=>{clear();status.textContent='Image, crops and results cleared.';});window.addEventListener('pagehide',clear);
 function engine():Promise<Engine>{if(window.Tesseract)return Promise.resolve(window.Tesseract);return script??=new Promise<Engine>((resolve,reject)=>{const s=document.createElement('script');s.src=root+'tesseract.min.js';s.onload=()=>window.Tesseract?resolve(window.Tesseract):reject(Error('OCR API missing'));s.onerror=()=>{script=undefined;reject(Error('Could not load OCR files. Check offline readiness.'));};document.head.append(s);});}
 file.addEventListener('change',async()=>{const selected=file.files?.[0];clear();if(!selected)return;const job=generation,url=URL.createObjectURL(selected);try{
@@ -105,7 +108,14 @@ read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;c
  const cell=dayCell(c,grid);if(cell?.top!==undefined){await current.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'0123456789'});const day=await current.recognize(crop(grid!.columns[cell.column]+2,cell.top+2,Math.min(35,c.width*.45),Math.max(8,Math.min(21,c.y-cell.top-3))),{},{text:true,tsv:true});if(job!==generation)return;const digits=day.data.text.trim();if(/^(?:[1-9]|[12]\d|3[01])$/.test(digits)&&parseTsv(day.data.tsv||'').some(w=>w.confidence>=60))result.day=digits;}
  }catch(e){result.error=String(e);}render();
  }
- if(grid&&job===generation){await current.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:''});const top=grid.rows[0]??Math.min(...cards.map(c=>c.y));const heading=await current.recognize(crop(grid.columns[0],Math.max(0,top-100),grid.columns[7]-grid.columns[0],Math.min(95,top)),{},{text:true,tsv:false});if(job===generation)header.value=heading.data.text;}
+ if(grid&&job===generation){
+ await current.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:''});
+ const bottom=grid.rows[0]??Math.min(...cards.map(c=>c.y)),top=Math.max(0,bottom-520);
+ const heading=await current.recognize(crop(grid.columns[0],top,grid.columns[7]-grid.columns[0],Math.max(1,bottom-top),'original',2),{},{text:true,tsv:false});if(job!==generation)return;header.value=heading.data.text;
+ const pixels=source.getContext('2d',{willReadFrequently:true})!.getImageData(0,0,source.width,source.height),band=weekdayBand(pixels.data,source.width,source.height,grid.columns[0],grid.columns[7],Math.min(...cards.map(c=>c.y)));
+ if(band){await current.setParameters({tessedit_pageseg_mode:'7'});const weekdays=await current.recognize(crop(band.x,band.y,band.width,band.height,'original',3),{},{text:true,tsv:false});if(job!==generation)return;header.value+='\nWeekday row:\n'+weekdays.data.text;}
+ }
+ if(job===generation)applyAutomaticDates(false);
  if(job===generation){progress.value=1;status.textContent='Finished reading '+active.length+' card(s). Review colour, label, printed times and date evidence. No calendar events created.'+(results.length>40?' Only the first 40 cards were read to limit memory/time.':'');}
  }catch(e){if(job===generation)status.textContent='Card OCR failed: '+String(e);}
  finally{if(current)await current.terminate().catch(()=>{});if(job===generation){worker=undefined;busy=false;controls();render();}}
@@ -147,14 +157,27 @@ function renderDateReview(){
  const show=document.createElement('button');show.textContent='Show original card '+entry.cardId;show.addEventListener('click',()=>document.getElementById('source-card-'+entry.cardId)?.scrollIntoView({behavior:'smooth',block:'start'}));article.append(show);root.append(article);
  }
  el('review-count').textContent=results.length+' card(s); '+dated+' dated; '+reviewed+' manually reviewed. Preview only - nothing has been sent to Google.';
+ const datedDates=assignments.flatMap(a=>a.date?[a.date]:[]).sort();
+ el('auto-date-status').textContent=anchorSource==='auto'&&dateAnchor?dateExplanation+' Anchor: card '+dateAnchor.cardId+' = '+dateDisplay(dateAnchor.date)+'.'+(datedDates.length?' Review range: '+dateDisplay(datedDates[0])+' to '+dateDisplay(datedDates[datedDates.length-1])+'.':'')+' Use Change date anchor if this looks wrong.':anchorSource==='manual'?'Using your manual date anchor. Individual corrections remain available.':dateExplanation;
  el('date-anchor-status').textContent=dateAnchor?'Anchor: card '+dateAnchor.cardId+' = '+dateAnchor.date+'. Check any conflicts below. Manual date overrides are retained.':'No date anchor confirmed. Enter the exact date of one numbered card, or enter individual dates below.';
 }
 anchorDate.addEventListener('input',controls);
 applyAnchor.addEventListener('click',()=>{
  if(busy||!validDate(anchorDate.value)){el('date-anchor-status').textContent='Enter a valid full date for the chosen numbered card.';return;}
  const id=Number(anchorSelect.value);if(!results.some(r=>r.card.id===id))return;
- dateAnchor={cardId:id,date:anchorDate.value,mondayFirst:weekOrder.checked};for(const r of results)r.reviewed=false;renderDateReview();
+ anchorSource='manual';dateExplanation='Using the date anchor you selected.';dateAnchor={cardId:id,date:anchorDate.value,mondayFirst:weekOrder.checked,source:'manual'};for(const r of results)r.reviewed=false;renderDateReview();
 });
+
+
+function applyAutomaticDates(force:boolean){
+ if(!force&&anchorSource==='manual')return;
+ const detected=inferDateAnchor(results,grid,header.value);dateExplanation=detected.reason;
+ for(const r of results)r.reviewed=false;
+ if(detected.anchor){dateAnchor=detected.anchor;anchorSource='auto';syncAnchorOptions();anchorSelect.value=String(detected.anchor.cardId);anchorDate.value=detected.anchor.date;weekOrder.checked=true;anchorControls.open=false;}
+ else{dateAnchor=undefined;anchorSource=undefined;anchorControls.open=true;}
+ renderDateReview();
+}
+retryDates.addEventListener('click',()=>{if(!busy){applyAutomaticDates(true);controls();}});
 
 async function offline(){const label=el('card-offline');if(!('serviceWorker'in navigator)||!import.meta.env.PROD){label.textContent='Offline cache requires the production deployment.';return;}
  try{await navigator.serviceWorker.register(import.meta.env.BASE_URL+'sw.js',{scope:import.meta.env.BASE_URL});await navigator.serviceWorker.ready;const info=await(await fetch(root+'assets.json')).json() as {files:string[]};const cached=await Promise.all(info.files.map(f=>caches.match(root+f)));
