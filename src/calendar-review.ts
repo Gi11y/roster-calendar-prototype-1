@@ -1,6 +1,7 @@
+import {applyCalendarChanges,applyEligibility,type ApplyResult} from './calendar-apply';
 import {createSignInPreparation} from './signin-preparation';
 import {readRosterChoices,includeVerifiedChoice,type CalendarChoice} from './calendar-list';
-import {calendarStage,comparisonCounts,renderCalendarChanges} from './calendar-presentation';
+import {calendarStage,comparisonCounts,renderCalendarChanges,calendarTime} from './calendar-presentation';
 import {loadGoogleScript,tokenClient,scopeGranted,calendarListGranted,CALENDAR_AUTH_SCOPES,CALENDAR_SCOPE,calendarApi as rawApi,type TokenResponse} from './google';
 import {readCalendarId,saveCalendarId} from './idb';
 import {verifyRosterCalendar,connectionLabel,type CalendarReadApi} from './calendar-selection';
@@ -13,6 +14,8 @@ export function mountCalendarReview(){
  const removals=el<HTMLInputElement>('compare-removals'),from=el<HTMLInputElement>('coverage-start'),to=el<HTMLInputElement>('coverage-end');
  const clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
  let token:string|undefined,deadline=0,timer:ReturnType<typeof setTimeout>|undefined,busy=false,storageReady=false,verified=false,calendarId:string|undefined,epoch=0,revision=0,events:ApprovedEvent[]=[];
+ let reviewedPlan:Comparison[]|undefined,applyResult:ApplyResult|undefined,applying=false;
+ const apply=document.getElementById('apply-calendar') as HTMLButtonElement|null;
  let pending:{calendarId:string;id:string}|undefined;
  let choices:CalendarChoice[]=[],listAllowed=false;
  const picker=document.getElementById('review-calendar-select') as HTMLSelectElement|null;
@@ -22,7 +25,7 @@ export function mountCalendarReview(){
  if(minimal){el('open-calendar-settings').addEventListener('click',()=>openOptions(true));el('review-reconnect').addEventListener('click',()=>auth.click());}
  const say=(text:string)=>{el('calendar-review-status').textContent=text;if(minimal)el('calendar-review-status').hidden=!text;};
  const errorText=(error:unknown)=>error instanceof Error?error.message:String(error);
- const invalidate=()=>{revision++;hasComparison=false;lastCounts=undefined;if(minimal){el('comparison-results').hidden=true;el('comparison-summary').replaceChildren();}el('calendar-comparison').replaceChildren();el('comparison-status').textContent='Prepare reviewed events, then compare. No real roster events will be written.';};
+ const invalidate=()=>{revision++;reviewedPlan=undefined;applyResult=undefined;hasComparison=false;lastCounts=undefined;if(minimal){el('comparison-results').hidden=true;el('comparison-summary').replaceChildren();}el('calendar-comparison').replaceChildren();el('comparison-status').textContent='Prepare reviewed events, then compare. Check your calendar to preview changes before applying.';};
  function refresh(){
   const connected=!!token&&Date.now()<deadline;
   el('review-connection').textContent=connectionLabel(connected,deadline);el('review-connection').dataset.connected=String(connected);
@@ -33,7 +36,14 @@ export function mountCalendarReview(){
   consent.disabled=busy;probe.disabled=busy||!connected||!verified||!consent.checked||!!pending;
   cleanup.hidden=!pending;cleanup.disabled=busy||!connected||!verified||pending?.calendarId!==calendarId;
   removals.disabled=busy;from.disabled=busy||!removals.checked;to.disabled=busy||!removals.checked;
+  if(apply){
+   const eligibility=applyEligibility(reviewedPlan||[]);
+   apply.hidden=!hasComparison||!reviewedPlan||!!eligibility.reason||!eligibility.count;
+   apply.disabled=busy||!connected||!verified||!!pending;
+   apply.textContent=applying?'Saving…':'Apply '+eligibility.count+' '+(eligibility.count===1?'change':'changes');
+  }
   if(minimal){
+   el<HTMLButtonElement>('back-to-review').disabled=busy;
    const stage=calendarStage(connected,verified,hasComparison),count=events.length;
    el('calendar-overview').dataset.stage=stage;
    el('calendar-main-actions').hidden=stage==='results';
@@ -50,10 +60,10 @@ export function mountCalendarReview(){
    el<HTMLButtonElement>('refresh-calendar-list').disabled=busy||!connected||!listAllowed;
    if(showPicker)el('review-destination').hidden=true;
    el('open-calendar-settings').hidden=stage!=='select'||showPicker;el<HTMLButtonElement>('open-calendar-settings').disabled=busy||!storageReady;
-   compare.hidden=stage!=='compare'&&stage!=='results';compare.textContent=busy?'Checking…':hasComparison?'Check again':'Check calendar';
+   compare.hidden=stage!=='compare'&&stage!=='results';compare.textContent=applying?'Saving…':busy?'Checking…':hasComparison?'Check again':'Check calendar';
    el('calendar-account-actions').hidden=!connected;el<HTMLButtonElement>('review-reconnect').disabled=busy;
-   el('calendar-step-title').textContent=stage==='connect'?'Connect Google':stage==='select'?'Choose your Roster calendar':stage==='compare'?'Ready to compare':lastCounts&&(lastCounts.conflict+lastCounts.restore)>0?'Some shifts need review':lastCounts&&(lastCounts.new+lastCounts.changed+lastCounts.removed)>0?(lastCounts.new+lastCounts.changed+lastCounts.removed)+' changes found':'Already up to date';
-   el('calendar-step-copy').textContent=stage==='connect'?'Use your personal Google account.':stage==='select'?'Select the existing calendar from your working setup.':stage==='compare'?'Check your confirmed shifts against Google.':'Nothing has been changed.';
+   el('calendar-step-title').textContent=applyResult?(applyResult.complete?'Shifts saved':'Some shifts need attention'):stage==='connect'?'Connect Google':stage==='select'?'Choose your Roster calendar':stage==='compare'?'Ready to compare':lastCounts&&(lastCounts.conflict+lastCounts.restore)>0?'Some shifts need review':lastCounts&&(lastCounts.new+lastCounts.changed+lastCounts.removed)>0?(lastCounts.new+lastCounts.changed+lastCounts.removed)+' changes found':'Already up to date';
+   el('calendar-step-copy').textContent=applyResult?'Check again before making further changes.':stage==='connect'?'Use your personal Google account.':stage==='select'?'Select the existing calendar from your working setup.':stage==='compare'?'Check your confirmed shifts against Google.':'Review the list before applying new and updated shifts.';
    el('calendar-cleanup-notice').hidden=!pending||busy;
    if(pending&&!busy){openOptions();el<HTMLDetailsElement>('calendar-developer-tests').open=true;el<HTMLDetailsElement>('calendar-probe-details').open=true;}
   }
@@ -134,14 +144,46 @@ export function mountCalendarReview(){
    say(minimal?'Checking your calendar…':'Reading existing Roster events. No calendar changes are being made.');
    const changes=await compareCalendar(guardedApi(connectionEpoch),destination,requireToken(),approved,coverage);
    if(currentRevision!==revision||connectionEpoch!==epoch)return;
+   if(minimal){reviewedPlan=structuredClone(changes);applyResult=undefined;}
    renderChanges(changes);
    const counts=(kind:Comparison['kind'])=>changes.filter(c=>c.kind===kind).length;
    el('comparison-status').textContent=counts('new')+' new; '+counts('changed')+' changed; '+counts('restore')+' need restoration; '+counts('removed')+' removal candidates; '+counts('unchanged')+' unchanged; '+counts('conflict')+' conflicts. '+(coverage?'Coverage confirmed: '+coverage.start+' to '+coverage.end+'.':'Removals excluded; complete coverage was not confirmed.')+' Preview only. No real roster events were written.';
-   if(minimal)el('comparison-status').textContent=(counts('conflict')||counts('restore')?'Expand flagged shifts to review the issue. ':'Tap a shift for details. ')+(coverage?'Coverage: '+coverage.start+' to '+coverage.end+'.':'New and updated shifts only.');
+   if(minimal)el('comparison-status').textContent=(counts('conflict')||counts('restore')?'Expand flagged shifts to review the issue. ':'Tap a shift for details. ')+(coverage?'Coverage: '+coverage.start+' to '+coverage.end+'. Removal candidates are preview only.':'New and updated shifts only.')+(applyEligibility(changes).reason?' '+applyEligibility(changes).reason:' Tap Apply to save the listed new and updated shifts.');
    say(minimal?'':'Calendar comparison complete. Review the before/after details. Real roster writes remain disabled.');
   }catch(error){if(currentRevision===revision)say('Comparison stopped: '+errorText(error));}
   finally{busy=false;refresh();}
  });
+ apply?.addEventListener('click',async()=>{
+  if(busy||!minimal||!verified||!calendarId||!reviewedPlan||pending)return;
+  const plan=structuredClone(reviewedPlan),currentRevision=revision,connectionEpoch=epoch,destination=calendarId;
+  const eligibility=applyEligibility(plan);if(eligibility.reason||!eligibility.count)return;
+  busy=true;applying=true;reviewedPlan=undefined;refresh();
+  const assertCurrent=()=>{if(currentRevision!==revision||connectionEpoch!==epoch||calendarId!==destination||!verified)throw Error('The account, calendar or reviewed shifts changed. Check the calendar again.');requireToken();};
+  try{
+   say('Checking the reviewed changes before saving…');
+   const result=await applyCalendarChanges(guardedApi(connectionEpoch),destination,requireToken(),plan,assertCurrent,(done,total)=>say('Saving shifts… '+done+' of '+total));
+   if(currentRevision===revision&&connectionEpoch===epoch){applyResult=result;renderApplyResult(result,plan);say('');}
+   else say('Saving stopped because the connection or reviewed shifts changed. Some saves may have reached Google. Reconnect and check again.');
+  }catch(error){say('Saving stopped: '+errorText(error)+' Check the calendar again before retrying.');}
+  finally{busy=false;applying=false;reviewedPlan=undefined;refresh();}
+ });
+ function renderApplyResult(result:ApplyResult,plan:Comparison[]){
+  const counts=(kind:ApplyResult['items'][number]['kind'])=>result.items.filter(x=>x.kind===kind).length;
+  el('comparison-summary').replaceChildren();
+  for(const [kind,label]of [['created','Added'],['updated','Updated'],['unchanged','Already matched'],['failed','Needs checking'],['not-attempted','Not attempted']]as const){
+   if(!counts(kind))continue;
+   const item=document.createElement('div'),number=document.createElement('strong'),caption=document.createElement('span');
+   number.textContent=String(counts(kind));caption.textContent=label;item.append(number,caption);el('comparison-summary').append(item);
+  }
+  el('calendar-comparison').replaceChildren();
+  for(const item of result.items){
+   const change=plan.find(c=>c.id===item.id),when=calendarTime(change?.after||change?.before),row=document.createElement('details'),summary=document.createElement('summary'),copy=document.createElement('span'),badge=document.createElement('span'),detail=document.createElement('p');
+   row.className='calendar-change';copy.className='calendar-change-copy';copy.textContent=when.date+' · '+when.hours+' · '+(change?.after?.summary||change?.before?.summary||'Roster shift');
+   badge.className='calendar-change-badge';badge.textContent=({created:'Added',updated:'Updated',unchanged:'Skipped',failed:'Check again','not-attempted':'Not attempted'}as const)[item.kind];
+   detail.className='calendar-change-detail';detail.textContent=item.detail;summary.append(copy,badge);row.append(summary,detail);el('calendar-comparison').append(row);
+  }
+  el('comparison-status').textContent=result.complete?'Your new and updated shifts are saved. Unchanged shifts were left as they were. No events were removed.':'Saving stopped. Some changes may already be saved. Check again to see what remains; stable IDs prevent duplicate inserts.';
+ }
  function renderChanges(changes:Comparison[]){
   const root=el('calendar-comparison');root.replaceChildren();
   if(minimal){

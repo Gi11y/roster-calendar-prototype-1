@@ -2,7 +2,7 @@ import {DateTime} from 'luxon';
 import {validDate,addDays} from './date-review.ts';
 import {OWNER_MARKER,type ApprovedEvent} from './approved-events.ts';
 import type {CalendarReadApi} from './calendar-selection';
-export interface RemoteEvent {id:string;etag?:string;status?:string;summary?:string;description?:string;start?:{dateTime?:string;date?:string;timeZone?:string};end?:{dateTime?:string;date?:string;timeZone?:string};reminders?:{useDefault?:boolean;overrides?:{method:string;minutes:number}[]};extendedProperties?:{private?:Record<string,string>};recurrence?:string[];recurringEventId?:string;attendees?:unknown[]}
+export interface RemoteEvent {id:string;etag?:string;status?:string;summary?:string;description?:string;start?:{dateTime?:string;date?:string;timeZone?:string};end?:{dateTime?:string;date?:string;timeZone?:string};reminders?:{useDefault?:boolean;overrides?:{method:string;minutes:number}[]};extendedProperties?:{private?:Record<string,string>};recurrence?:string[];recurringEventId?:string;attendees?:unknown[];locked?:boolean;eventType?:string}
 export interface Coverage {start:string;end:string;confirmed:boolean}
 export type ChangeKind='new'|'changed'|'unchanged'|'restore'|'removed'|'conflict';
 export interface Comparison {kind:ChangeKind;id:string;before?:RemoteEvent;after?:ApprovedEvent;reason:string}
@@ -28,7 +28,7 @@ export function planComparison(approved:ApprovedEvent[],remote:RemoteEvent[],cov
   const before=existing.get(after.id);
   if(!before)return{kind:'new',id:after.id,after,reason:'No event with this stable ID was found.'};
   if(before.status==='cancelled')return{kind:'restore',id:after.id,before,after,reason:'This stable ID was deleted. Recovery must be validated before any write.'};
-  if(!managed(before)||before.recurrence||before.recurringEventId||before.attendees?.length)return{kind:'conflict',id:after.id,before,after,reason:'An existing event has this ID but is not a simple event managed by this importer. It will not be overwritten.'};
+  if(!managed(before)||before.recurrence||before.recurringEventId||before.attendees?.length||before.locked||(before.eventType&&before.eventType!=='default')||['rosterDate','rosterType','rosterOrdinal'].some(key=>before.extendedProperties?.private?.[key]!==after.extendedProperties.private[key as keyof ApprovedEvent['extendedProperties']['private']]))return{kind:'conflict',id:after.id,before,after,reason:'An existing event has this ID but is not a simple event managed by this importer. It will not be overwritten.'};
   return{kind:sameEvent(before,after)?'unchanged':'changed',id:after.id,before,after,reason:sameEvent(before,after)?'The approved fields already match.':'Approved title, times, description or reminder differ.'};
  });
  if(coverage)for(const before of remote){

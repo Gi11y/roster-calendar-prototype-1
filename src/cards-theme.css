@@ -55,3 +55,7 @@
 .calendar-minimal .calendar-picker{display:block;max-width:360px;margin:20px auto;text-align:left;font-size:.85rem;color:var(--muted,#796b65)}
 .calendar-minimal .calendar-picker[hidden]{display:none}
 .calendar-minimal .calendar-picker select{display:block;width:100%;margin-top:8px;padding:12px;border:1px solid #d5c8c0;border-radius:10px;background:#fffdf9;color:#534039;font:inherit;font-size:1rem}
+
+.calendar-minimal #calendar-result-actions{display:flex;flex-direction:column;gap:12px}
+.calendar-minimal #apply-calendar{width:100%;max-width:360px;align-self:center}
+.calendar-minimal #calendar-result-actions #compare-calendar{background:transparent;border:1px solid #b9a69b;color:#624d43}

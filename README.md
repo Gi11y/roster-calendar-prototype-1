@@ -1,3 +1,13 @@
+## v0.17 — apply reviewed new and updated shifts
+
+The normal app now has an Apply button after checking your Roster calendar. The button names the number of new/updated changes. No real event write occurs on connection, calendar selection, checking or screenshot review. Removal candidates remain preview-only; deleted-ID recovery and conflicts block Apply until resolved. Baseline/experimental reader pages remain read-only.
+
+Apply revalidates the destination and all target events before its first write, then checks each target again immediately before saving. New events use deterministic IDs. HTTP 409 is accepted only after reading and matching the same managed shift. Updates require the exact reviewed etag and send If-Match. An intervening change stops the batch and requires a fresh comparison. It never overwrites foreign events or switches to a random ID. It preserves unrelated private metadata.
+
+Saves run sequentially. Results distinguish added, updated, already matching, failed/uncertain and unattempted operations. An expired token or lost response stops further writes. Check again after reconnecting to see what remains; already saved stable IDs will not be duplicated. Calendar and event fields are rechecked before writes. Tokens stay memory-only. No OCR or shift-review code changed, no additional Google scopes.
+
+Account/device test: use one confirmed shift, Check calendar, review the New entry, then Apply 1 change. Check again: it must be Unchanged with no Apply button. Repeat the screenshot: no duplicate. Edit only its hours, confirm and check: it must be Update, then Apply should edit that same event. Try changing that event in Google after preview but before Apply: saving must stop and request a new comparison. Check disconnect/reconnect and both Safari/home-screen modes. Live writes require your deliberate Apply tap and account; automated tests use synthetic in-memory calendars.
+
 ## v0.16 — one-tap connection and calendar dropdown
 
 After confirming shifts, Calendar preview prepares Google Identity Services. Once ready, one tap on Connect Google opens the popup directly within the tap. Screenshots/OCR remain on-device; the Google library now loads when continuing to Calendar preview.
