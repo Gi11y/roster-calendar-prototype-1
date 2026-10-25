@@ -3,16 +3,17 @@ import{DateTime}from'luxon';import{addDays}from'./date-review';import{calendarTi
 import{loadGoogleScript,tokenClient,scopeGranted,calendarListGranted,CALENDAR_AUTH_SCOPES,calendarApi,type TokenResponse}from'./google';
 import{createSignInPreparation}from'./signin-preparation';import{readUsableRosterChoices,includeVerifiedChoice,type CalendarChoice}from'./calendar-list';
 import{readCalendarId,saveCalendarId}from'./idb';import{verifyRosterCalendar,type CalendarReadApi}from'./calendar-selection';
-import{mountCalendarProgress,withCalendarNamesProgress}from'./calendar-progress';import{isStatus,type RemoteEvent}from'./calendar-compare';
+import{mountCalendarProgress,withCalendarNamesProgress,type CalendarProgress}from'./calendar-progress';import{isStatus,type RemoteEvent}from'./calendar-compare';
 import{listSwapShifts,prepareSwap,applySwap,SwapRecoveryRequired,type SwapPlan}from'./shift-swap';
 import{recoveryProbe,cleanupProbe}from'./recovery-probe';import type{ApplyOptions}from'./calendar-apply';
 const el=<T extends HTMLElement>(id:string)=>document.getElementById(id)as T;
 const auth=el<HTMLButtonElement>('swap-connect'),disconnect=el<HTMLButtonElement>('swap-disconnect'),calendar=el<HTMLSelectElement>('swap-calendar'),load=el<HTMLButtonElement>('swap-load'),old=el<HTMLSelectElement>('swap-old'),replace=el<HTMLInputElement>('swap-replace'),review=el<HTMLButtonElement>('swap-review'),confirm=el<HTMLButtonElement>('swap-confirm'),retry=el<HTMLButtonElement>('swap-retry');
-const from=el<HTMLInputElement>('swap-from'),to=el<HTMLInputElement>('swap-to'),progress=mountCalendarProgress(el('calendar-operation')),clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
+const from=el<HTMLInputElement>('swap-from'),to=el<HTMLInputElement>('swap-to'),progressView=mountCalendarProgress(el('calendar-operation')),clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
+const progress={...progressView,start(value:CalendarProgress){progressView.start(value);el('calendar-operation').scrollIntoView({block:'nearest'});}};
 let token:string|undefined,deadline=0,timer:ReturnType<typeof setTimeout>|undefined,epoch=0,revision=0,busy=false,calendarId:string|undefined,savedId:string|undefined,shifts:RemoteEvent[]=[],choices:CalendarChoice[]=[],plan:SwapPlan|undefined,recovery:ApplyOptions['recovery'],probePending:{calendarId:string;id:string}|undefined;
 const fields=['swap-date','swap-type','swap-role','swap-start','swap-end','swap-next','swap-reminder']as const;
 const say=(value:string)=>el('swap-status').textContent=value,errorText=(e:unknown)=>e instanceof Error?e.message:String(e);
-function invalidate(){revision++;plan=undefined;el('swap-preview').hidden=true;retry.hidden=true;confirm.disabled=true;confirm.hidden=false;}
+function invalidate(){revision++;plan=undefined;el('swap-preview').hidden=true;el('swap-result').textContent='';retry.hidden=true;confirm.disabled=true;confirm.hidden=false;}
 const preparation=createSignInPreparation(loadGoogleScript,()=>refresh());
 function refresh(){
  const connected=!!token&&Date.now()<deadline;
@@ -22,6 +23,7 @@ function refresh(){
  el('swap-calendar-label').hidden=!connected||!choices.length;calendar.disabled=busy||!!probePending;calendar.value=calendarId||'';
  load.disabled=busy||!connected||!calendarId;old.disabled=busy||!shifts.length;from.disabled=to.disabled=busy;
  replace.disabled=busy;for(const id of fields)el<HTMLInputElement|HTMLSelectElement>(id).disabled=busy||!replace.checked;
+ el('swap-choose-panel').hidden=!connected||!calendarId;el('swap-edit-panel').hidden=!connected||!old.value;
  el('swap-new-fields').hidden=!replace.checked;review.disabled=busy||!connected||!calendarId||!old.value||!!probePending;review.textContent=replace.checked?'Review swap':'Review removal';
  confirm.disabled=busy||!plan||!connected;retry.disabled=busy||!plan||!connected;
  const consent=el<HTMLInputElement>('swap-probe-consent');consent.disabled=busy;
@@ -93,7 +95,7 @@ review.addEventListener('click',async()=>{
   line(el('swap-before'),plan.kind==='update'?'Current shift':'Remove this shift',plan.old);
   el('swap-after').hidden=!plan.after;if(plan.after)line(el('swap-after'),plan.kind==='update'?'Updated shift':'Replacement shift',plan.after);
   el('swap-plan-note').textContent=plan.kind==='update'?'This updates the same event, keeping one copy.':plan.after?'The replacement is saved and verified before the original is removed.':'Only this selected shift will be removed.';
-  confirm.textContent=plan.kind==='remove'?'Confirm removal':plan.kind==='update'?'Confirm update':'Confirm swap';el('swap-preview').hidden=false;say('Review the change below before confirming.');
+  confirm.textContent=plan.kind==='remove'?'Confirm removal':plan.kind==='update'?'Confirm update':'Confirm swap';el('swap-preview').hidden=false;say('Review the change below before confirming.');el('swap-preview').scrollIntoView({block:'start'});el('swap-preview').querySelector<HTMLElement>('h2')?.focus({preventScroll:true});
  }catch(e){if(e instanceof SwapRecoveryRequired){el<HTMLDetailsElement>('swap-recovery').hidden=false;el<HTMLDetailsElement>('swap-recovery').open=true;}say(errorText(e));}finally{busy=false;progress.stop();refresh();}
 });
 async function save(){
@@ -103,8 +105,9 @@ async function save(){
   if(!navigator.locks)throw Error('Use a current Safari or Chrome browser to confirm this change.');
   progress.start({phase:'validating',completed:0,total:2});
   const result=await navigator.locks.request('roster-swap:'+reviewed.calendarId+':'+reviewed.old.id,async()=>{assertCurrent();return applySwap(apiFor(connection),requireToken(),reviewed,assertCurrent,p=>progress.update(p),recovery);});
-  say(result.detail);if(result.complete){resetShifts();el('swap-preview').hidden=true;}else{retry.hidden=false;confirm.disabled=true;confirm.hidden=true;}
- }catch(e){say(errorText(e));retry.hidden=false;}finally{busy=false;progress.stop();refresh();}
+  say(result.detail);el('swap-result').textContent=result.detail;if(result.complete){resetShifts();el('swap-preview').hidden=true;}else{retry.hidden=false;confirm.disabled=true;confirm.hidden=true;}
+  if(result.complete)el('swap-status').scrollIntoView({block:'center'});else el('swap-result').scrollIntoView({block:'center'});
+ }catch(e){say(errorText(e));el('swap-result').textContent=errorText(e);retry.hidden=false;el('swap-result').scrollIntoView({block:'center'});}finally{busy=false;progress.stop();refresh();}
 }
 confirm.addEventListener('click',()=>void save());retry.addEventListener('click',()=>void save());
 const consent=el<HTMLInputElement>('swap-probe-consent');consent.addEventListener('change',refresh);
