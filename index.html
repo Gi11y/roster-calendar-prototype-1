@@ -1,53 +1,35 @@
-<!doctype html>
-<html lang="en">
-<head>
- <meta charset="UTF-8" />
- <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
- <meta name="theme-color" content="#123d57" />
- <meta name="apple-mobile-web-app-capable" content="yes" />
- <meta name="apple-mobile-web-app-status-bar-style" content="default" />
- <meta name="apple-mobile-web-app-title" content="Roster Test" />
- <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
- <link rel="apple-touch-icon" href="%BASE_URL%icons/icon-192.png" />
- <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://accounts.google.com; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self'" />
- <title>Roster Calendar — Prototype 1</title>
-</head>
-<body>
- <main>
-  <header><h1>Roster Calendar</h1><p>Prototype 1 v0.9.1 - Google sign-in and event checks</p></header>
-  <section><p><a href="%BASE_URL%cards.html?v=0.9.1">Open colour + per-card recognition preview</a></p><a href="%BASE_URL%ocr.html?v=0.4">Open Prototype 2: screenshot OCR test</a></section>
-  <section class="notice"><strong>Unofficial test app.</strong> Not affiliated with NSW Health. Use a personal Google account. No roster images are processed in this prototype.</section>
-  <section>
-   <h2>1. Connect Google</h2>
-   <p>Google's sign-in script is loaded only after you choose to connect. The first tap prepares it; the second tap opens the sign-in popup.</p>
-   <p id="connection" role="status" aria-live="polite">Google not connected - sign in to continue</p>
-   <button id="auth">Prepare Google sign-in</button>
-   <p class="small">Permission requested: <code>calendar.app.created</code> only.</p>
-  </section>
-  <section>
-   <h2>2. Choose your Roster calendar</h2>
-   <p>Already used this app in Safari, on your laptop, or another phone? Use the same calendar here to avoid a second Roster calendar.</p>
-   <p id="destination">No calendar selected.</p>
-   <button id="copy-calendar" disabled>Copy selected calendar ID</button>
-   <label for="existing-calendar">Existing Roster calendar ID</label>
-   <input id="existing-calendar" type="text" autocomplete="off" spellcheck="false" placeholder="Paste the calendar ID from your working app" />
-   <button id="use-calendar" disabled>Verify and use existing calendar</button>
-   <p class="small">On the working laptop or Safari app, copy the selected calendar ID above. Paste it here, connect the same personal Google account and verify. This reads the calendar before saving it; it does not create events.</p>
-   <details><summary>First time only: create a new Roster calendar</summary>
-    <p>Safari and the home-screen app may store settings separately. Creating here will make another calendar if one already exists. Check your working app or Google Calendar first.</p>
-    <label><input id="confirm-new" type="checkbox" /> I have checked for an existing Roster calendar and want to create a new one.</label>
-    <button id="create" disabled>Create a new Roster calendar</button>
-   </details>
-  </section>
-  <section>
-   <h2>3. Insert one test event</h2>
-   <button id="event" disabled>Check / add test event</button>
-   <button id="cleanup" hidden disabled>Remove extra identical test events</button>
-   <p class="small">Synthetic event: <strong>Roster Prototype 1 Test</strong>, 3 November 2026, 12:00–12:30 in Australia/Sydney. No real shift data. Repeated taps reuse an identical test event. Extra copies from older versions are shown before you choose to remove them.</p>
-  </section>
-  <section><h2>Diagnostics</h2><p id="mode"></p><p id="status" role="status" aria-live="polite">Ready.</p><p id="calendar"></p><p id="eventlink"></p><p id="sw"></p></section>
-  <footer>Google access tokens are never written to local storage. Internet is required for sign-in and Calendar API calls.</footer>
- </main>
- <script type="module" src="/src/main.ts"></script>
-</body>
-</html>
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f0dfd9"><meta name="apple-mobile-web-app-capable" content="yes"><link rel="manifest" href="%BASE_URL%manifest.webmanifest"><link rel="apple-touch-icon" href="%BASE_URL%icons/icon-192.png"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client; connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://accounts.google.com; worker-src 'self'; img-src 'self' blob: data:; style-src 'self' https://accounts.google.com/gsi/style; object-src 'none'; base-uri 'self'; form-action 'none'"><title>Roster</title></head><body class="cards-app"><main id="app-main">
+<header class="app-brand"><span>Roster</span><span class="version">v0.12</span></header>
+<p id="flow-message" class="flow-message" role="status" hidden></p>
+<section id="start-screen" class="flow-screen">
+<h1>Add your roster</h1><p class="intro">Choose a screenshot. We’ll read it on your phone.</p>
+<div class="ivory-sheet upload-sheet">
+<svg class="image-icon" viewBox="0 0 64 52" aria-hidden="true"><rect x="3" y="3" width="58" height="46" rx="5"/><circle cx="20" cy="17" r="5"/><path d="m4 39 17-15 11 9 11-10 17 15"/></svg>
+<label class="choose-file" for="card-file">Choose screenshot<input id="card-file" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Choose screenshot"></label>
+<p class="format-note">JPG, PNG or WebP</p>
+<div class="privacy-note"><svg viewBox="0 0 24 30" aria-hidden="true"><rect x="3" y="12" width="18" height="15" rx="3"/><path d="M7 12V8a5 5 0 0 1 10 0v4"/></svg><p>Your screenshot stays on your phone.<br>No Google sign-in needed to get started.</p></div>
+</div>
+<ol class="steps"><li>Choose a screenshot</li><li>Check your shifts</li><li>Review calendar changes</li></ol>
+</section>
+<section id="reading-screen" class="flow-screen" hidden><h1>Reading your roster…</h1><p class="intro">This happens on your phone.</p><div class="ivory-sheet reading-sheet">
+<svg class="image-icon" viewBox="0 0 64 52" aria-hidden="true"><rect x="3" y="3" width="58" height="46" rx="5"/><circle cx="20" cy="17" r="5"/><path d="m4 39 17-15 11 9 11-10 17 15"/></svg>
+<p id="selected-filename" class="filename"></p><p class="small">On this device</p>
+<progress id="card-progress" max="1" value="0" aria-label="Roster reading progress"></progress><p id="card-status" role="status" aria-live="polite">Reading shifts</p><p class="small">Keep this page open.</p><button id="cancel-reading" class="text-button">Cancel</button><div class="privacy-note"><p>Your screenshot stays on your phone.</p></div>
+</div></section>
+<section id="date-review" class="flow-screen" hidden><h1 tabindex="-1">Review your shifts</h1><p class="intro">Check the dates and times before continuing.</p><p id="roster-date-range" class="range-label"></p>
+<div class="ivory-sheet review-sheet"><div id="date-results"></div><div class="review-bottom"><p id="review-count" role="status" aria-live="polite"></p><button id="prepare-events" class="primary-action" disabled>Confirm remaining shifts</button><button id="change-screenshot" class="text-button">Choose another screenshot</button><p class="privacy-caption">Screenshots stay on your phone</p></div></div>
+<details class="quiet-tools"><summary>Date and reminder settings</summary><p id="auto-date-status" role="status">Read the cards to detect dates automatically.</p><button id="detect-dates" disabled>Try automatic dates again</button><details id="anchor-controls"><summary>Change date anchor</summary><p>Choose a numbered card and enter its exact date from the screenshot.</p><label>Anchor card <select id="anchor-card" aria-label="Anchor card"></select></label><label>Exact date <input id="anchor-date" type="date" aria-label="Anchor date"></label><label><input id="week-order" type="checkbox"> Columns run Monday to Sunday</label><button id="apply-anchor" disabled>Confirm anchor and associate dates</button><p id="date-anchor-status" role="status"></p></details><label>Event reminder <select id="event-reminder"><option value="none">No reminder</option><option value="30">30 minutes before</option><option value="60">1 hour before</option><option value="120">2 hours before</option></select></label></details>
+</section>
+<section id="calendar-screen" class="flow-screen" hidden><button id="back-to-review" class="text-button">‹ Back to shifts</button><h1 tabindex="-1">Review calendar changes</h1><p class="intro">Connect Google to compare your confirmed shifts.</p><p class="stage-note">Preview stage: real roster imports are not enabled yet.</p>
+<div class="ivory-sheet calendar-sheet"><section id="calendar-review"><h2>Your Roster calendar</h2><p>Use a personal Google account and your existing dedicated Roster calendar. Only calendar.app.created is requested. Tokens stay in memory and expire; no screenshots or raw OCR are sent. Preparing Google sign-in downloads the Google library; the second tap opens the account popup.</p>
+<p id="review-connection" role="status" data-connected="false">Google not connected</p><button id="review-auth">Prepare Google sign-in</button> <button id="review-disconnect" disabled>Disconnect</button><p id="review-destination"></p>
+<details><summary>Choose an existing Roster calendar</summary><p>Paste the secondary calendar ID from the working Google prototype. Selecting it verifies access and saves only the calendar ID. This page does not create calendars.</p><label>Existing Roster calendar ID <input id="review-calendar-id" type="text" autocomplete="off" spellcheck="false"></label><button id="review-use-calendar" disabled>Verify and use this calendar</button><a href="%BASE_URL%google-test.html?v=0.12">Open original calendar setup</a></details>
+<p id="calendar-review-status" role="status" aria-live="polite">Sign in only when you want to compare or run the separate recovery test.</p>
+<details><summary>Include removal candidates (optional)</summary><p>Leave this off for new/changed shifts only. To preview removals, confirm the entire roster period, including days off. Do not use just the first and last detected shifts as proof of complete coverage. Only importer-managed events inside the period can be removal candidates. Leave entries and unrelated calendar events are not managed by this review.</p><label>First covered date <input id="coverage-start" type="date" disabled></label><label>Last covered date <input id="coverage-end" type="date" disabled></label><label><input id="compare-removals" type="checkbox"> I confirm the reviewed list contains every shift in this complete period and want to preview removals</label></details>
+<button id="compare-calendar" disabled>Compare reviewed events — no changes</button><p id="comparison-status" role="status">Prepare reviewed events, then compare. No real roster events will be written.</p><div id="calendar-comparison"></div>
+<details><summary>Test deleted-event recovery (synthetic event only)</summary><p>This separate test creates “Roster recovery test — safe to delete” on 3 November 2026, 12:40–12:45 Sydney time, with no reminder, in the verified Roster calendar. It deletes the event, attempts to restore the same ID, verifies it, then deletes the synthetic event again. Keep this page open. If interrupted, use Retry synthetic cleanup or remove that named event manually. This test never imports your reviewed shifts.</p><label><input id="probe-consent" type="checkbox"> I approve creating, deleting and restoring this one synthetic event in the selected Roster calendar</label><button id="recovery-probe" disabled>Run synthetic recovery test</button><button id="probe-cleanup" hidden>Retry synthetic cleanup</button><p id="probe-status" role="status" aria-live="polite">Not tested with this Google account/calendar connection.</p></details></section>
+<details class="quiet-tools"><summary>Approved event details</summary><section id="prepared-events"><h2>Local event preview</h2><p>Check every detected card above, then preview the exact event fields locally. Editing a card or reminder clears the preview. Stable IDs protect against duplicates and do not change when shift hours change. After preparing events, you can compare them with Google below. Real roster writes are not enabled yet.</p><p id="event-preview-status" role="status" aria-live="polite">Review every detected card to prepare the event preview. Nothing is sent to Google.</p><div id="event-preview"></div></section>
+</details></div></section>
+<details id="advanced-tools" class="quiet-tools" hidden><summary>Screenshot and recognition details</summary><section><h2>Screenshot evidence</h2><p id="grid-status"></p><canvas id="card-image" width="1" height="1" aria-label="Screenshot with detected shift boxes"></canvas><label>Header OCR (unverified)<textarea id="header-evidence" readonly rows="3"></textarea></label><p id="card-count"></p><button id="detect-cards" disabled>Detect cards again</button> <button id="read-cards" disabled>Read cards again</button> <button id="clear-cards" class="text-button">Clear screenshot</button><p id="card-offline">Checking offline assets…</p><button id="card-offline-check" class="text-button">Check offline readiness</button></section><section><h2>Recognition diagnostics</h2><p>Printed times override defaults. Light green means Educator; darker green means floor staff. A/P without printed hours default to 07:00–15:00 / 13:30–21:30. N is 19:00–07:00 next day; N10 is 21:45–07:45 next day.</p><div id="card-results"></div></section></details>
+<footer class="app-footer"><p>Unofficial tool · Not endorsed by NSW Health</p><details><summary>About this prototype</summary><p>Images and OCR stay in device memory. Only optional calendar comparison contacts Google after you tap sign-in. Review every shift. Tokens are short lived and never stored.</p><a href="%BASE_URL%google-test.html?v=0.12">Original Google test</a> · <a href="%BASE_URL%ocr.html?v=0.4.1">OCR test</a></details></footer>
+</main><script type="module" src="/src/cards.ts"></script></body></html>

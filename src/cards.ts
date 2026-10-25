@@ -1,4 +1,5 @@
 import './style.css';
+import './cards-theme.css';
 import {mountCalendarReview} from './calendar-review';
 import {sydneyRange,hoursText} from './sydney-time';
 import {prepareEvents,type ReviewedShift} from './approved-events';
@@ -21,20 +22,27 @@ const retryDates=el<HTMLButtonElement>('detect-dates'),anchorControls=el<HTMLDet
 const root=new URL(import.meta.env.BASE_URL+'ocr-assets/',location.origin).href;
 let source:HTMLCanvasElement|undefined,cards:Card[]=[],grid:Grid|undefined,busy=false,generation=0,worker:Worker|undefined;
 interface Result {card:Card;label?:string;confidence?:number;text:string;day?:string;error?:string;labelPreview?:HTMLCanvasElement;labelNote?:string;timeText?:string;timeReason?:string;manualDate?:string;manualStart?:string;manualEnd?:string;manualNextDay?:boolean;reviewed?:boolean}
+type Phase='start'|'reading'|'review'|'calendar';
+let phase:Phase='start';const editingCards=new Set<number>();
+function showPhase(next:Phase,focus=false){phase=next;for(const [id,value] of [['start-screen','start'],['reading-screen','reading'],['date-review','review'],['calendar-screen','calendar']])el(id).hidden=next!==value;el('advanced-tools').hidden=next==='start'||next==='reading';if(focus)document.querySelector<HTMLElement>('#'+(next==='review'?'date-review':'calendar-screen')+' h1')?.focus({preventScroll:false});}
+function flowMessage(message:string){el('flow-message').textContent=message;el('flow-message').hidden=!message;}
+el('cancel-reading').addEventListener('click',()=>clear());
+el('change-screenshot').addEventListener('click',()=>file.click());
+el('back-to-review').addEventListener('click',()=>showPhase('review',true));
 let results:Result[]=[];let script:Promise<Engine>|undefined;
 let previewRevision=0;
 const prepareButton=el<HTMLButtonElement>('prepare-events'),reminderInput=el<HTMLSelectElement>('event-reminder');
 function invalidatePreview(){calendarReview.setEvents([]);previewRevision++;el('event-preview').replaceChildren();el('event-preview-status').textContent='Review every detected card to prepare the event preview. Nothing is sent to Google.';prepareButton.disabled=true;}
 reminderInput.addEventListener('change',()=>renderDateReview());
 function controls(){retryDates.disabled=busy||!results.length||!header.value.trim();anchorSelect.disabled=busy;anchorDate.disabled=busy;weekOrder.disabled=busy;applyAnchor.disabled=busy||!results.length||!validDate(anchorDate.value);file.disabled=busy;detect.disabled=busy||!source;read.disabled=busy||!cards.length;}
-function clear(){invalidatePreview();anchorSource=undefined;dateExplanation='Read the cards to detect dates automatically.';el('auto-date-status').textContent=dateExplanation;anchorControls.open=false;dateAnchor=undefined;anchorDate.value='';weekOrder.checked=false;anchorSelect.replaceChildren();el('date-results').replaceChildren();el('review-count').textContent='';el('date-anchor-status').textContent='No date anchor confirmed.';generation++;void worker?.terminate();worker=undefined;if(source){source.width=1;source.height=1;}source=undefined;cards=[];results=[];grid=undefined;view.width=view.height=1;list.replaceChildren();header.value='';el('card-count').textContent='';el('grid-status').textContent='No grid detected yet.';busy=false;progress.value=0;file.value='';controls();}
+function clear(){showPhase('start');editingCards.clear();flowMessage('');invalidatePreview();anchorSource=undefined;dateExplanation='Read the cards to detect dates automatically.';el('auto-date-status').textContent=dateExplanation;anchorControls.open=false;dateAnchor=undefined;anchorDate.value='';weekOrder.checked=false;anchorSelect.replaceChildren();el('date-results').replaceChildren();el('review-count').textContent='';el('date-anchor-status').textContent='No date anchor confirmed.';generation++;void worker?.terminate();worker=undefined;if(source){source.width=1;source.height=1;}source=undefined;cards=[];results=[];grid=undefined;view.width=view.height=1;list.replaceChildren();header.value='';el('card-count').textContent='';el('grid-status').textContent='No grid detected yet.';busy=false;progress.value=0;file.value='';controls();}
 el('clear-cards').addEventListener('click',()=>{clear();status.textContent='Image, crops and results cleared.';});window.addEventListener('pagehide',clear);
 function engine():Promise<Engine>{if(window.Tesseract)return Promise.resolve(window.Tesseract);return script??=new Promise<Engine>((resolve,reject)=>{const s=document.createElement('script');s.src=root+'tesseract.min.js';s.onload=()=>window.Tesseract?resolve(window.Tesseract):reject(Error('OCR API missing'));s.onerror=()=>{script=undefined;reject(Error('Could not load OCR files. Check offline readiness.'));};document.head.append(s);});}
-file.addEventListener('change',async()=>{const selected=file.files?.[0];clear();if(!selected)return;const job=generation,url=URL.createObjectURL(selected);try{
+file.addEventListener('change',async()=>{const selected=file.files?.[0];clear();if(!selected)return;showPhase('reading');el('selected-filename').textContent=selected.name;status.textContent='Opening screenshot…';const job=generation,url=URL.createObjectURL(selected);try{
  if(selected.size>20_000_000)throw Error('Use a file smaller than 20 MB.');const image=new Image();image.src=url;await image.decode();if(job!==generation)return;
  if(image.naturalWidth*image.naturalHeight>25_000_000)throw Error('Use an image under 25 megapixels.');const scale=Math.min(1,Math.sqrt(3_000_000/(image.naturalWidth*image.naturalHeight)));
- source=document.createElement('canvas');source.width=Math.round(image.naturalWidth*scale);source.height=Math.round(image.naturalHeight*scale);source.getContext('2d')!.drawImage(image,0,0,source.width,source.height);scan();
- }catch(e){status.textContent=String(e);}finally{URL.revokeObjectURL(url);controls();}});
+ source=document.createElement('canvas');source.width=Math.round(image.naturalWidth*scale);source.height=Math.round(image.naturalHeight*scale);source.getContext('2d')!.drawImage(image,0,0,source.width,source.height);scan();if(cards.length)read.click();else{showPhase('start');flowMessage('No green shift cards were found. Try a clearer or more closely cropped screenshot.');}
+ }catch(e){if(job===generation){showPhase('start');flowMessage(String(e));}}finally{URL.revokeObjectURL(url);controls();}});
 function draw(){if(!source)return;view.width=source.width;view.height=source.height;const ctx=view.getContext('2d')!;ctx.drawImage(source,0,0);
  if(grid){ctx.strokeStyle='#146b9d';ctx.lineWidth=1;for(const x of grid.columns){ctx.beginPath();ctx.moveTo(x,Math.min(...cards.map(c=>c.y))-40);ctx.lineTo(x,Math.max(...grid.rows,...cards.map(c=>c.y+c.height))+3);ctx.stroke();}for(const y of grid.rows){ctx.beginPath();ctx.moveTo(grid.columns[0],y);ctx.lineTo(grid.columns[7],y);ctx.stroke();}}
  ctx.strokeStyle='#ee7300';ctx.lineWidth=3;ctx.font='bold 16px system-ui';for(const card of cards){ctx.strokeRect(card.x,card.y,card.width,card.height);ctx.fillStyle='#fff';ctx.fillRect(card.x,card.y,25,20);ctx.fillStyle='#000';ctx.fillText(String(card.id),card.x+3,card.y+16);}}
@@ -75,7 +83,7 @@ function render(){list.replaceChildren();for(const result of results){
  const raw=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Recognition diagnostics (raw OCR and rejection reasons)';raw.open=!!result.text&&!result.label;raw.append(summary);const text=document.createElement('pre');text.textContent=result.error||result.text||'Not read yet.';raw.append(text);section.append(raw);const back=document.createElement('a');back.href='#date-review';back.textContent='Back to chronological review';section.append(back);list.append(section);
  }
  syncAnchorOptions();renderDateReview();}
-read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;const job=++generation;busy=true;for(const r of results){r.reviewed=false;r.error=undefined;}controls();render();progress.value=0;status.textContent='Loading the on-device card reader...';let current:Worker|undefined;
+read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;showPhase('reading');flowMessage('');const job=++generation;busy=true;for(const r of results){r.reviewed=false;r.error=undefined;}controls();render();progress.value=0;status.textContent='Loading the on-device card reader...';let current:Worker|undefined;
  try{const lib=await engine();if(job!==generation)return;current=await lib.createWorker('eng',1,{workerPath:root+'worker.min.js',corePath:root,langPath:root.replace(/\/$/,''),workerBlobURL:false,cacheMethod:'none',gzip:true});if(job!==generation){await current.terminate();return;}worker=current;
  const active=results.slice(0,40);
  for(let index=0;index<active.length;index++){if(job!==generation)return;const result=active[index],c=result.card;status.textContent='Reading card '+(index+1)+' of '+active.length+'...';progress.value=index/active.length;
@@ -126,7 +134,7 @@ read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;c
  if(job===generation)applyAutomaticDates(false);
  if(job===generation){progress.value=1;status.textContent='Finished reading '+active.length+' card(s). Review colour, label, printed times and date evidence. No calendar events created.'+(results.length>40?' Only the first 40 cards were read to limit memory/time.':'');}
  }catch(e){if(job===generation)status.textContent='Card OCR failed: '+String(e);}
- finally{if(current)await current.terminate().catch(()=>{});if(job===generation){worker=undefined;busy=false;controls();render();}}
+ finally{if(current)await current.terminate().catch(()=>{});if(job===generation){worker=undefined;busy=false;controls();render();showPhase('review',true);}}
 });
 
 function syncAnchorOptions(){
@@ -144,31 +152,54 @@ function reviewState(result:Result,assigned:AssignedDate|undefined){
  return{p,start,end,nextDay,timing,zoned,error};
 }
 function renderDateReview(){
+ if(phase==='calendar')showPhase('review');
  invalidatePreview();
  const assignments=associateDates(results,grid,dateAnchor),map=new Map(assignments.map(a=>[a.cardId,a]));
  const ordered=sortReview(results.map(result=>({cardId:result.card.id,date:map.get(result.card.id)?.date,start:reviewState(result,map.get(result.card.id)).start,result})));
  const root=el('date-results');root.replaceChildren();let reviewed=0,dated=0;
  for(const entry of ordered){const result=entry.result,assignment=map.get(entry.cardId)!,state=reviewState(result,assignment);if(assignment.date)dated++;if(result.reviewed&&!state.error)reviewed++;
- const article=document.createElement('article');article.className='shift-card date-row';
- const heading=document.createElement('h3');heading.textContent=dateDisplay(assignment.date)+' - Card '+entry.cardId+' - '+(result.card.colour==='light'?'Educator':result.card.colour==='dark'?'Floor staff':'Role unclear')+' '+(result.label||'?');article.append(heading);
- const evidence=document.createElement('p');evidence.className='small';const timeBasis=result.manualStart!==undefined||result.manualEnd!==undefined||result.manualNextDay!==undefined?'Times manually edited - compare with original image':state.p.basis;evidence.textContent=assignment.basis+(assignment.warning?'. '+assignment.warning:'')+'. '+timeBasis;article.append(evidence);
+ const article=document.createElement('article');article.className='shift-row';article.dataset.cardId=String(entry.cardId);
+ const line=document.createElement('div');line.className='shift-line';
+ const copy=document.createElement('div');copy.className='shift-copy';
+ const top=document.createElement('div');top.className='shift-top';
+ const heading=document.createElement('h3');heading.className='shift-date';heading.textContent=assignment.date?new Intl.DateTimeFormat('en-AU',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'}).format(new Date(assignment.date+'T00:00:00Z')):'Date needed';
+ const hours=document.createElement('span');hours.className='shift-hours';hours.textContent=state.start&&state.end?state.start+'–'+state.end:'Check times';top.append(heading,hours);copy.append(top);
+ const role=document.createElement('p');role.className='shift-role';const name=result.label==='A'?'Morning':result.label==='P'?'Afternoon':result.label==='N'||result.label==='N10'?'Night':'Shift type needed';role.textContent=name+' · '+(result.card.colour==='light'?'Educator':result.card.colour==='dark'?'Floor staff':'Role needed');copy.append(role);
+ if(state.nextDay){const overnight=document.createElement('p');overnight.className='shift-overnight';overnight.textContent='Ends next day';copy.append(overnight);}
+ const checkLabel=document.createElement('label');checkLabel.className='round-confirm';const check=document.createElement('input');check.type='checkbox';check.checked=!!result.reviewed&&!state.error;check.disabled=busy||!!state.error;check.setAttribute('aria-label','Reviewed card '+entry.cardId);const mark=document.createElement('span');mark.className='checkmark';mark.setAttribute('aria-hidden','true');checkLabel.append(check,mark);
+ check.addEventListener('change',()=>{result.reviewed=check.checked;renderDateReview();document.querySelector<HTMLInputElement>('[aria-label="Reviewed card '+entry.cardId+'"]')?.focus({preventScroll:true});});
+ const toggle=document.createElement('button');toggle.className='row-edit';toggle.type='button';toggle.setAttribute('aria-label','Edit shift for card '+entry.cardId);toggle.setAttribute('aria-expanded',String(editingCards.has(entry.cardId)));toggle.setAttribute('aria-controls','shift-editor-'+entry.cardId);
+ line.append(copy,checkLabel,toggle);article.append(line);
+ if(state.error){const warning=document.createElement('p');warning.className='shift-warning';warning.textContent='Needs review · '+state.error.replace(' in Card OCR details.','.');article.append(warning);}
+ if(state.zoned.range?.changesOffset){const dst=document.createElement('p');dst.className='dst-note';dst.textContent='Clocks change during this shift: '+hoursText(state.zoned.range.elapsedMinutes)+' elapsed.';article.append(dst);}
+ const editor=document.createElement('div');editor.className='shift-editor';editor.id='shift-editor-'+entry.cardId;editor.hidden=!editingCards.has(entry.cardId);
+ toggle.addEventListener('click',()=>{if(editingCards.has(entry.cardId))editingCards.delete(entry.cardId);else editingCards.add(entry.cardId);editor.hidden=!editingCards.has(entry.cardId);toggle.setAttribute('aria-expanded',String(!editor.hidden));});
+ const sourceLabel=document.createElement('p');sourceLabel.className='small';sourceLabel.textContent='Original card '+entry.cardId+' · Check the date against your full screenshot.';editor.append(sourceLabel);
+ if(source){const c=result.card,thumb=crop(c.x-2,c.y-2,c.width+4,c.height+4,'original',2);thumb.className='card-thumb';thumb.setAttribute('aria-label','Original shift card '+entry.cardId);editor.append(thumb);}
  const fields=document.createElement('div');fields.className='date-fields';
- const dateLabel=document.createElement('label');dateLabel.textContent='Shift date ';const date=document.createElement('input');date.type='date';date.value=assignment.date||'';date.disabled=busy;date.setAttribute('aria-label','Date for card '+entry.cardId);dateLabel.append(date);fields.append(dateLabel);
+ const field=(labelText:string,input:HTMLElement)=>{const label=document.createElement('label');label.textContent=labelText;label.append(input);fields.append(label);};
+ const date=document.createElement('input');date.type='date';date.value=assignment.date||'';date.disabled=busy;date.setAttribute('aria-label','Date for card '+entry.cardId);field('Shift date ',date);
  date.addEventListener('change',()=>{result.manualDate=date.value;result.reviewed=false;renderDateReview();});
- if(assignment.candidate){const use=document.createElement('button');use.textContent='Use proposed '+assignment.candidate+' after checking image';use.disabled=busy;use.addEventListener('click',()=>{result.manualDate=assignment.candidate;result.reviewed=false;renderDateReview();});article.append(use);}
- const startLabel=document.createElement('label');startLabel.textContent='Start ';const start=document.createElement('input');start.type='time';start.value=state.start||'';start.disabled=busy;start.setAttribute('aria-label','Start for card '+entry.cardId);startLabel.append(start);fields.append(startLabel);
- const endLabel=document.createElement('label');endLabel.textContent='End ';const end=document.createElement('input');end.type='time';end.value=state.end||'';end.disabled=busy;end.setAttribute('aria-label','End for card '+entry.cardId);endLabel.append(end);fields.append(endLabel);
- const changedTime=()=>{result.manualStart=start.value;result.manualEnd=end.value;if(validClock(start.value)&&validClock(end.value)&&start.value!==end.value)result.manualNextDay=end.value<start.value;result.reviewed=false;renderDateReview();};start.addEventListener('change',changedTime);end.addEventListener('change',changedTime);
+ const type=document.createElement('select');type.setAttribute('aria-label','Type for shift '+entry.cardId);type.disabled=busy;
+ for(const [value,text] of [['','Choose type'],['A','A · Morning'],['P','P · Afternoon'],['N','N · Night'],['N10','N10 · Night']]){const option=document.createElement('option');option.value=value;option.textContent=text;type.append(option);}type.value=result.label||'';field('Shift type ',type);
+ const staff=document.createElement('select');staff.setAttribute('aria-label','Role for shift '+entry.cardId);staff.disabled=busy;
+ for(const [value,text] of [['uncertain','Choose role'],['light','Educator'],['dark','Floor staff']]){const option=document.createElement('option');option.value=value;option.textContent=text;staff.append(option);}staff.value=result.card.colour;field('Role ',staff);
+ type.addEventListener('change',()=>{result.label=type.value||undefined;result.reviewed=false;render();});staff.addEventListener('change',()=>{result.card.colour=staff.value as Colour;result.reviewed=false;render();});
+ const startInput=document.createElement('input');startInput.type='time';startInput.value=state.start||'';startInput.disabled=busy;startInput.setAttribute('aria-label','Start for card '+entry.cardId);field('Start ',startInput);
+ const endInput=document.createElement('input');endInput.type='time';endInput.value=state.end||'';endInput.disabled=busy;endInput.setAttribute('aria-label','End for card '+entry.cardId);field('End ',endInput);
+ const changedTime=()=>{result.manualStart=startInput.value;result.manualEnd=endInput.value;if(validClock(startInput.value)&&validClock(endInput.value)&&startInput.value!==endInput.value)result.manualNextDay=endInput.value<startInput.value;result.reviewed=false;renderDateReview();};
+ startInput.addEventListener('change',changedTime);endInput.addEventListener('change',changedTime);
  const overnightLabel=document.createElement('label'),overnight=document.createElement('input');overnight.type='checkbox';overnight.checked=state.nextDay;overnight.disabled=busy;overnight.setAttribute('aria-label','Ends next day for card '+entry.cardId);overnightLabel.append(overnight,document.createTextNode(' Ends next day'));fields.append(overnightLabel);
- overnight.addEventListener('change',()=>{result.manualNextDay=overnight.checked;result.reviewed=false;renderDateReview();});
- article.append(fields);
- const outcome=document.createElement('p');outcome.className='proposal';outcome.textContent=state.error?'Needs review: '+state.error:(dateDisplay(assignment.date)+' '+state.start+' to '+dateDisplay(state.timing.endDate)+' '+state.end+' (Australia/Sydney; '+hoursText(state.zoned.range!.elapsedMinutes)+' elapsed'+(state.zoned.range!.changesOffset?'; clocks change: '+hoursText(state.zoned.range!.clockMinutes)+' on the clock':'')+')');article.append(outcome);
- const checkLabel=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.checked=!!result.reviewed&&!state.error;check.disabled=busy||!!state.error;check.setAttribute('aria-label','Reviewed card '+entry.cardId);checkLabel.append(check,document.createTextNode(' I checked this date, label, role and both times against the image'));check.addEventListener('change',()=>{result.reviewed=check.checked;renderDateReview();});article.append(checkLabel);
- const show=document.createElement('button');show.textContent='Show original card '+entry.cardId;show.addEventListener('click',()=>document.getElementById('source-card-'+entry.cardId)?.scrollIntoView({behavior:'smooth',block:'start'}));article.append(show);root.append(article);
+ overnight.addEventListener('change',()=>{result.manualNextDay=overnight.checked;result.reviewed=false;renderDateReview();});editor.append(fields);
+ const evidence=document.createElement('p');evidence.className='small';evidence.textContent=assignment.basis+(assignment.warning?'. '+assignment.warning:'')+'. '+(result.manualStart!==undefined||result.manualEnd!==undefined?'Times manually edited.':state.p.basis)+'. All times Australia/Sydney.';editor.append(evidence);
+ if(assignment.candidate){const use=document.createElement('button');use.textContent='Use proposed '+assignment.candidate;use.disabled=busy;use.addEventListener('click',()=>{result.manualDate=assignment.candidate;result.reviewed=false;renderDateReview();});editor.append(use);}
+ article.append(editor);root.append(article);
  }
  prepareButton.disabled=busy||!results.length||reviewed!==results.length;reminderInput.disabled=busy;
- el('review-count').textContent=results.length+' card(s); '+dated+' dated; '+reviewed+' manually reviewed. No real roster events have been written.';
+ el('review-count').textContent=reviewed+' of '+results.length+' confirmed';
+ prepareButton.textContent=reviewed===results.length&&results.length?'Review calendar changes':'Confirm remaining '+(results.length-reviewed===1?'shift':'shifts');
  const datedDates=assignments.flatMap(a=>a.date?[a.date]:[]).sort();
+ el('roster-date-range').textContent=datedDates.length?dateDisplay(datedDates[0])+(datedDates[0]!==datedDates[datedDates.length-1]?' – '+dateDisplay(datedDates[datedDates.length-1]):'')+(dated<results.length?' · '+(results.length-dated)+' need a date':''):results.length+' shifts to check';
  el('auto-date-status').textContent=anchorSource==='auto'&&dateAnchor?dateExplanation+' Anchor: card '+dateAnchor.cardId+' = '+dateDisplay(dateAnchor.date)+'.'+(datedDates.length?' Review range: '+dateDisplay(datedDates[0])+' to '+dateDisplay(datedDates[datedDates.length-1])+'.':'')+' Use Change date anchor if this looks wrong.':anchorSource==='manual'?'Using your manual date anchor. Individual corrections remain available.':dateExplanation;
  el('date-anchor-status').textContent=dateAnchor?'Anchor: card '+dateAnchor.cardId+' = '+dateAnchor.date+'. Check any conflicts below. Manual date overrides are retained.':'No date anchor confirmed. Enter the exact date of one numbered card, or enter individual dates below.';
 }
@@ -186,6 +217,7 @@ prepareButton.addEventListener('click',async()=>{
   const prepared=await prepareEvents(shifts,reminderInput.value==='none'?null:Number(reminderInput.value));
   if(revision!==previewRevision)return;
   calendarReview.setEvents(prepared.map(item=>item.event));
+  showPhase('calendar',true);
   const root=el('event-preview');root.replaceChildren();
   for(const item of prepared){
    const article=document.createElement('article');article.className='shift-card';
@@ -221,4 +253,4 @@ async function offline(){const label=el('card-offline');if(!('serviceWorker'in n
  try{await navigator.serviceWorker.register(import.meta.env.BASE_URL+'sw.js',{scope:import.meta.env.BASE_URL});await navigator.serviceWorker.ready;const info=await(await fetch(root+'assets.json')).json() as {files:string[]};const cached=await Promise.all(info.files.map(f=>caches.match(root+f)));
  label.textContent=navigator.serviceWorker.controller&&cached.every(Boolean)?'OCR assets cached. Close all app windows and reopen after an update; test this page in airplane mode.':'Offline assets installing. Keep online, then close app windows and reopen.';
  }catch{label.textContent='Offline readiness not confirmed. Reconnect and check again.';}}
-el('card-offline-check').addEventListener('click',()=>void offline());navigator.serviceWorker?.addEventListener('controllerchange',()=>void offline());void offline();controls();
+el('card-offline-check').addEventListener('click',()=>void offline());navigator.serviceWorker?.addEventListener('controllerchange',()=>void offline());void offline();controls();showPhase('start');

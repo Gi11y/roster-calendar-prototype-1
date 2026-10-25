@@ -22,3 +22,9 @@ assert.equal(response,undefined);
 assert(html.includes(base + 'assets/'));
 assert(!html.includes('src="https://accounts.google.com'));
 console.log('PASS: complete precache, offline navigation, scoped cache cleanup, Google bypass, GitHub Pages asset base, lazy GIS.');
+
+assert(stored.includes(root+'cards.html'));
+assert(stored.includes(root+'google-test.html'));
+assert(html.includes('Add your roster'));
+assert(readFileSync('dist/google-test.html','utf8').includes('id="auth"'));
+console.log('PASS: new upload landing and preserved Google test both precached.');

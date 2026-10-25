@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <meta charset="UTF-8" />
+ <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+ <meta name="theme-color" content="#123d57" />
+ <meta name="apple-mobile-web-app-capable" content="yes" />
+ <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+ <meta name="apple-mobile-web-app-title" content="Roster Test" />
+ <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
+ <link rel="apple-touch-icon" href="%BASE_URL%icons/icon-192.png" />
+ <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://accounts.google.com; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self'" />
+ <title>Roster Calendar — Prototype 1</title>
+</head>
+<body>
+ <main>
+  <header><h1>Roster Calendar</h1><p>Prototype 1 v0.9.1 - Google sign-in and event checks</p></header>
+  <section><p><a href="%BASE_URL%cards.html?v=0.9.1">Open colour + per-card recognition preview</a></p><a href="%BASE_URL%ocr.html?v=0.4">Open Prototype 2: screenshot OCR test</a></section>
+  <section class="notice"><strong>Unofficial test app.</strong> Not affiliated with NSW Health. Use a personal Google account. No roster images are processed in this prototype.</section>
+  <section>
+   <h2>1. Connect Google</h2>
+   <p>Google's sign-in script is loaded only after you choose to connect. The first tap prepares it; the second tap opens the sign-in popup.</p>
+   <p id="connection" role="status" aria-live="polite">Google not connected - sign in to continue</p>
+   <button id="auth">Prepare Google sign-in</button>
+   <p class="small">Permission requested: <code>calendar.app.created</code> only.</p>
+  </section>
+  <section>
+   <h2>2. Choose your Roster calendar</h2>
+   <p>Already used this app in Safari, on your laptop, or another phone? Use the same calendar here to avoid a second Roster calendar.</p>
+   <p id="destination">No calendar selected.</p>
+   <button id="copy-calendar" disabled>Copy selected calendar ID</button>
+   <label for="existing-calendar">Existing Roster calendar ID</label>
+   <input id="existing-calendar" type="text" autocomplete="off" spellcheck="false" placeholder="Paste the calendar ID from your working app" />
+   <button id="use-calendar" disabled>Verify and use existing calendar</button>
+   <p class="small">On the working laptop or Safari app, copy the selected calendar ID above. Paste it here, connect the same personal Google account and verify. This reads the calendar before saving it; it does not create events.</p>
+   <details><summary>First time only: create a new Roster calendar</summary>
+    <p>Safari and the home-screen app may store settings separately. Creating here will make another calendar if one already exists. Check your working app or Google Calendar first.</p>
+    <label><input id="confirm-new" type="checkbox" /> I have checked for an existing Roster calendar and want to create a new one.</label>
+    <button id="create" disabled>Create a new Roster calendar</button>
+   </details>
+  </section>
+  <section>
+   <h2>3. Insert one test event</h2>
+   <button id="event" disabled>Check / add test event</button>
+   <button id="cleanup" hidden disabled>Remove extra identical test events</button>
+   <p class="small">Synthetic event: <strong>Roster Prototype 1 Test</strong>, 3 November 2026, 12:00–12:30 in Australia/Sydney. No real shift data. Repeated taps reuse an identical test event. Extra copies from older versions are shown before you choose to remove them.</p>
+  </section>
+  <section><h2>Diagnostics</h2><p id="mode"></p><p id="status" role="status" aria-live="polite">Ready.</p><p id="calendar"></p><p id="eventlink"></p><p id="sw"></p></section>
+  <footer>Google access tokens are never written to local storage. Internet is required for sign-in and Calendar API calls.<p><a href="%BASE_URL%index.html?v=0.12">Back to Roster</a></p></footer>
+ </main>
+ <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
