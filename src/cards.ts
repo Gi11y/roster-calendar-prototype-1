@@ -136,7 +136,23 @@ result.label=decision.label;result.confidence=decision.confidence;result.labelNo
     await current.setParameters({tessedit_pageseg_mode:mode,tessedit_char_whitelist:'0123456789:.- ',user_defined_dpi:'300'});
     const response=await current.recognize(padded,{},{text:true,tsv:true});if(job!==generation)return;reads.push(response.data.text);result.text+='\n'+name+': '+response.data.text;
    }
-   const agreement=agreeFocusedTimes(reads);
+   let agreement=agreeFocusedTimes(reads);
+   if(!agreement.range){
+    // Separate the two clocks so the range separator cannot distort digit recognition.
+    const rowWords=inkWords.filter(w=>w.bbox.y0>=line.top&&w.bbox.y1<=line.top+line.height),dash=rowWords.find(w=>/^[-–—]$/.test(w.text));
+    const left=Math.max(c.x+1,c.x-2+Math.min(...rowWords.map(w=>w.bbox.x0))/3-3),right=Math.min(c.x+c.width-1,c.x-2+Math.max(...rowWords.map(w=>w.bbox.x1))/3+3),middle=dash?c.x-2+(dash.bbox.x0+dash.bbox.x1)/6:(left+right)/2;
+    const clockReads:string[]=[];
+    for(const [mode,scale]of[['8',4],['13',5]]as const){
+     const values:string[]=[];
+     for(const [x,width]of[[left,middle-left-3],[middle+3,right-middle-3]]){
+      const clock=crop(Math.floor(x),Math.floor(top)-1,Math.ceil(width),Math.ceil(height)+2,'original',scale),padded=document.createElement('canvas');padded.width=clock.width+40;padded.height=clock.height+40;const cx=padded.getContext('2d')!;cx.fillStyle='#fff';cx.fillRect(0,0,padded.width,padded.height);cx.drawImage(clock,20,20);
+      await current.setParameters({tessedit_pageseg_mode:mode,tessedit_char_whitelist:'0123456789:.',user_defined_dpi:'300'});
+      const reading=await current.recognize(padded,{},{text:true,tsv:false});if(job!==generation)return;values.push(reading.data.text.trim());
+     }
+     clockReads.push(values.join(' - '));result.text+='\nSeparate clocks '+mode+': '+values.join(' - ');
+    }
+    const clockAgreement=agreeFocusedTimes(clockReads);if(clockAgreement.range)agreement=clockAgreement;
+   }
    if(agreement.range)result.timeText=agreement.range.start+' - '+agreement.range.end;
    else result.timeWarning=agreement.warning;
   }else if(/\d{1,2}[:.°º]\d{2}|\d{4}\s*[-–—]\s*\d{4}/.test(safe))result.timeWarning='Printed time text was detected but its line was unclear. Enter both times after checking the screenshot.';
