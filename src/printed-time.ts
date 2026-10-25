@@ -3,8 +3,13 @@ import {shiftTextOnly,isMetadata} from './card-content.ts';
 import type {Word} from './ocr-data';
 export function normalizePrintedTime(text:string):string{
  // Substitutions apply only to paired time contexts, never to arbitrary IDs.
- return text.replace(/([0-2]?\d)[°º]([0-5]\d)(?=\s*(?:[-–—]|to|$))/gi,'$1:$2')
- .replace(/(?:^|[^\d])(\d{2})([0-5]\d)\s*[-–—]\s*(\d{2})([0-5]\d)(?!\d)/g,(all,a,b,c,d)=>Number(a)<24&&Number(c)<24?' '+a+':'+b+' - '+c+':'+d:all);
+ const token='(?:[0-2]?\\d[:.°º][0-5]\\d|\\d{4})';
+ return text.replace(new RegExp('(^|[^0-9])('+token+')\\s*[-–—]\\s*('+token+')(?!\\d)','g'),(all,prefix,left,right)=>{
+  const clock=(value:string)=>value.length===4&&!/[:.°º]/.test(value)?value.slice(0,2)+':'+value.slice(2):value.replace(/[.°º]/,':');
+  const first=clock(left),last=clock(right);
+  return Number(first.split(':')[0])<24&&Number(last.split(':')[0])<24?prefix+first+' - '+last:all;
+ });
+
 }
 export function printedLine(words:Word[],labelBottom:number):{top:number;height:number}|undefined{
  const rows:Word[][]=[];

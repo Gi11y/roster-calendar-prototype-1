@@ -126,10 +126,15 @@ result.label=decision.label;result.confidence=decision.confidence;result.labelNo
   const bottom=frames?(frames.bottom-(c.y-2))*3:0,line=printedLine(inkWords,bottom);
   if(line){
    const top=c.y-2+line.top/3,height=line.height/3;
-   const raw=crop(c.x+1,top,c.width-2,height,'original',6),mono=crop(c.x+1,top,c.width-2,height,'original',6);
-   const mx=mono.getContext('2d')!,mp=mx.getImageData(0,0,mono.width,mono.height);mp.data.set(timeInk(mp.data,c.rgb,frames?.lightInk));mx.putImageData(mp,0,0);
+   function timeFrame(binary:boolean){
+    const native=crop(c.x+1,top,c.width-2,height,'original',1),nx=native.getContext('2d')!,np=nx.getImageData(0,0,native.width,native.height),bg=.299*c.rgb[0]+.587*c.rgb[1]+.114*c.rgb[2];
+    if(binary)np.data.set(timeInk(np.data,c.rgb,frames?.lightInk));
+    else for(let i=0;i<np.data.length;i+=4){const lum=.299*np.data[i]+.587*np.data[i+1]+.114*np.data[i+2],v=frames?.lightInk?255-(lum-bg)/(255-bg)*255:(lum-bg*.35)/(bg*.65)*255;np.data[i]=np.data[i+1]=np.data[i+2]=Math.max(0,Math.min(255,v));}
+    nx.putImageData(np,0,0);const large=document.createElement('canvas'),scale=binary?6:5;large.width=native.width*scale;large.height=native.height*scale;const lx=large.getContext('2d')!;lx.imageSmoothingEnabled=false;lx.drawImage(native,0,0,large.width,large.height);return large;
+   }
+   const raw=timeFrame(false),mono=timeFrame(true);
    const reads:string[]=[];
-   for(const [name,canvas,mode]of[['focused original',raw,'7'],['focused ink',mono,'13']]as const){
+   for(const [name,canvas,mode]of[['focused native contrast',raw,'7'],['focused native ink',mono,'13']]as const){
     const padded=document.createElement('canvas');padded.width=canvas.width+32;padded.height=canvas.height+32;const px=padded.getContext('2d')!;px.fillStyle='#fff';px.fillRect(0,0,padded.width,padded.height);px.drawImage(canvas,16,16);
     await current.setParameters({tessedit_pageseg_mode:mode,tessedit_char_whitelist:'0123456789:.- ',user_defined_dpi:'300'});
     const response=await current.recognize(padded,{},{text:true,tsv:true});if(job!==generation)return;reads.push(response.data.text);result.text+='\n'+name+': '+response.data.text;
