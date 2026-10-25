@@ -1,3 +1,9 @@
+## v0.22 — calendar-name loading after Google sign-in
+
+Immediately after a valid Google token returns, Calendar preview shows Google connected, Getting calendar names and an indeterminate progress bar. The existing elapsed-time/long-wait feedback remains active while the saved-calendar check, list fetch and candidate access checks finish. Calendar choices and setup actions stay hidden/disabled until this phase finishes. The same feedback is used by Refresh calendar list.
+
+Success or failure clears the indicator; connection expiry/disconnect clears it as well. No fake percentage is shown because the number of calendars and requests is not known yet. OAuth popup timing, scopes, calendar operations, OCR and crop behaviour are unchanged. Tests verify the label, immediate start, pending-request lifetime and failure cleanup. Real Google-return timing on phones still requires a device check.
+
 ## v0.21 — visible checking and saving progress
 
 Calendar preview now shows a progress bar during Check calendar and Apply. It reports actual completed shift checks, preflight checks, and saved/verified operations. Paginated calendar reads use an indeterminate bar because the page total is unknown. Elapsed time updates every second; after 15 seconds a longer-wait message asks the user to keep the page open and avoid tapping again. No simulated percentage or time estimate.

@@ -24,3 +24,21 @@ test('elapsed time and a longer-wait message update without advancing completed 
  finally{Date.now=oldNow;globalThis.setInterval=oldSet;globalThis.clearInterval=oldClear;}
 });
 test('legacy pages with no progress panel remain supported',()=>{const view=mountCalendarProgress(null);view.start({phase:'checking',completed:0,total:2});view.update({phase:'checking',completed:1,total:2});view.stop();});
+
+import{withCalendarNamesProgress}from'../src/calendar-progress.ts';
+test('calendar-name loading uses an indeterminate label without a guessed total',()=>{
+ const e=elements(),view=mountCalendarProgress(e.root);
+ try{view.start({phase:'calendars',completed:0});assert.equal(e.label.textContent,'Getting calendar names…');assert.equal(e.attributes.value,'removed');assert.equal(e.root.hidden,false);}finally{view.stop();}
+});
+test('post-login progress starts before the first lookup and stays until names are ready',async()=>{
+ const calls=[];let resolve;const pending=new Promise(r=>{resolve=r;});
+ const indicator={start(value){calls.push(['start',value.phase]);},stop(){calls.push(['stop']);}};
+ const result=withCalendarNamesProgress(indicator,async()=>{calls.push(['lookup']);return await pending;},loading=>calls.push(['loading',loading]));
+ assert.deepEqual(calls,[['start','calendars'],['loading',true],['lookup']]);
+ resolve(['Roster']);assert.deepEqual(await result,['Roster']);assert.deepEqual(calls.slice(-2),[['stop'],['loading',false]]);
+});
+test('failed calendar-name loading removes progress and releases the loading state',async()=>{
+ const calls=[],indicator={start(){calls.push('start');},stop(){calls.push('stop');}};
+ await assert.rejects(withCalendarNamesProgress(indicator,async()=>{throw Error('Google unavailable');},loading=>calls.push(loading)),/Google unavailable/);
+ assert.deepEqual(calls,['start',true,'stop',false]);
+});

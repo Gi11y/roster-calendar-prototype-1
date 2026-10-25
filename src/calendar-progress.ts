@@ -1,6 +1,6 @@
-export interface CalendarProgress {phase:'listing'|'checking'|'validating'|'saving';completed:number;total?:number}
+export interface CalendarProgress {phase:'calendars'|'listing'|'checking'|'validating'|'saving';completed:number;total?:number}
 export function calendarProgressText(progress:CalendarProgress):string{
- const names={listing:'Reading your calendar',checking:'Checking shifts',validating:'Checking changes before saving',saving:'Saving changes'};
+ const names={calendars:'Getting calendar names',listing:'Reading your calendar',checking:'Checking shifts',validating:'Checking changes before saving',saving:'Saving changes'};
  const done=Math.max(0,Math.floor(progress.completed));
  return names[progress.phase]+(progress.total&&progress.total>0?' · '+Math.min(done,progress.total)+' of '+progress.total:done?' · '+done+' '+(done===1?'page loaded':'pages loaded'):'…');
 }
@@ -24,4 +24,10 @@ export function mountCalendarProgress(root:HTMLElement|null){
   start(progress:CalendarProgress){stop();if(!root)return;started=Date.now();root.hidden=false;root.closest('[data-calendar-busy-root]')?.querySelector('#calendar-comparison')?.setAttribute('aria-busy','true');update(progress);tick();interval=setInterval(tick,1000);},
   update,stop
  };
+}
+
+export async function withCalendarNamesProgress<T>(indicator:{start(progress:CalendarProgress):void;stop():void},task:()=>Promise<T>,changed:(loading:boolean)=>void=()=>{}):Promise<T>{
+ indicator.start({phase:'calendars',completed:0});
+ try{changed(true);return await task();}
+ finally{indicator.stop();changed(false);}
 }

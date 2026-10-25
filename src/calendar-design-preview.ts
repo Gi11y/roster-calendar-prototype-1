@@ -41,3 +41,13 @@ if(progressExample==='checking'||progressExample==='saving'){
  el('comparison-results').hidden=true;el('calendar-main-actions').hidden=true;
  el('calendar-approved-count').textContent=checking?'14 confirmed shifts':'6 confirmed shifts';
 }
+
+if(new URLSearchParams(location.search).get('view')==='calendars'){
+ const root=el('calendar-operation'),view=mountCalendarProgress(root);
+ el('calendar-overview').dataset.stage='select';el('comparison-results').hidden=true;el('calendar-main-actions').hidden=true;el('calendar-picker-row').hidden=true;
+ el('calendar-step-title').textContent='Google connected';el('calendar-step-copy').textContent='Finding your Roster calendar.';
+ el('review-connection').textContent='Google connected (example)';el('calendar-approved-count').textContent='Your confirmed shifts';
+ root.hidden=false;view.update({phase:'calendars',completed:0});
+ root.querySelector<HTMLElement>('[data-progress-hint]')!.textContent='Synthetic progress example — no requests are running.';
+ root.querySelector<HTMLElement>('[data-progress-elapsed]')!.textContent='3s (example)';
+}
