@@ -1,0 +1,9 @@
+import{test}from'node:test';import assert from'node:assert/strict';import{isolateLabel,chooseLabel}from'../src/label-data.ts';
+function sample(){const w=45,h=25,d=new Uint8ClampedArray(w*h*4);for(let i=0;i<w*h;i++)d.set([35,185,35,255],i*4);function rect(x,y,a,b){for(let yy=y;yy<y+b;yy++)for(let xx=x;xx<x+a;xx++)d.set([5,20,5,255],(yy*w+xx)*4);}return{w,h,d,rect};}
+test('isolates top-left letter without lower time-line pixels',()=>{const p=sample();p.rect(4,3,7,9);p.rect(3,18,30,5);const r=isolateLabel(p.d,p.w,p.h,[35,185,35]);assert(r);assert(r.bounds.y+r.bounds.height<18);assert.equal(r.components,1);});
+test('keeps neighbouring N10 glyphs on the same line',()=>{const p=sample();p.rect(4,3,7,9);p.rect(14,3,3,9);p.rect(20,3,6,9);const r=isolateLabel(p.d,p.w,p.h,[35,185,35]);assert.equal(r.components,3);assert(r.bounds.x+r.bounds.width>=26);});
+test('blank colour patch and isolated noise do not become labels',()=>{const p=sample();p.rect(3,4,1,1);assert.equal(isolateLabel(p.d,p.w,p.h,[35,185,35]),undefined);});
+test('two moderate matching readings can recover a short label',()=>{assert.equal(chooseLabel([{label:'P',confidence:45,source:'mono'},{label:'P',confidence:55,source:'normal'}]).label,'P');});
+test('strong conflicting letters stay uncertain',()=>{assert.equal(chooseLabel([{label:'A',confidence:91,source:'mono'},{label:'P',confidence:90,source:'normal'}]).label,undefined);});
+test('one weak reading or an unsupported N12 never creates a label',()=>{assert.equal(chooseLabel([{label:'N',confidence:42,source:'mono'}]).label,undefined);assert.equal(chooseLabel([{label:'N12',confidence:98,source:'mono'}]).label,undefined);});
+test('N10 and a strong single letter are retained',()=>{assert.equal(chooseLabel([{label:'N10',confidence:94,source:'mono'}]).label,'N10');assert.equal(chooseLabel([{label:'A',confidence:95,source:'mono'}]).label,'A');});
