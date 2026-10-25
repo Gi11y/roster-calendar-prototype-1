@@ -1,4 +1,5 @@
 import './style.css';
+import { ensureTest, removeExtras } from './test-event';
 import { readCalendarId, saveCalendarId } from './idb';
 import { calendarApi, loadGoogleScript, scopeGranted, tokenClient, type TokenResponse } from './google';
 
@@ -6,6 +7,8 @@ const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 const authButton = document.querySelector<HTMLButtonElement>('#auth')!;
 const createButton = document.querySelector<HTMLButtonElement>('#create')!;
 const eventButton = document.querySelector<HTMLButtonElement>('#event')!;
+const cleanupButton = document.querySelector<HTMLButtonElement>('#cleanup')!;
+let cleanup: {keepId: string; ids: string[]} | undefined;
 const status = document.querySelector<HTMLElement>('#status')!;
 const calendarText = document.querySelector<HTMLElement>('#calendar')!;
 const eventLink = document.querySelector<HTMLElement>('#eventlink')!;
@@ -28,6 +31,7 @@ const say = (message: string) => { status.textContent = message; };
 const errorMessage = (e: unknown) => e instanceof Error ? e.message : String(e);
 const setBusy = (value: boolean) => { busy = value; updateButtons(); };
 function updateButtons() {
+ cleanupButton.disabled = busy || !token || !cleanup;
  authButton.disabled = busy || !clientId;
  createButton.disabled = busy || !token || !!calendarId;
  eventButton.disabled = busy || !token || !calendarId;
@@ -54,7 +58,7 @@ authButton.addEventListener('click', async () => {
  }
  if (!clientId) return;
  // No await before requestAccessToken: this is essential for iOS popup testing.
- say('Opening Google popup…');
+ say('Opening Google popupâ€¦');
  setBusy(true);
  try {
   const client = tokenClient(clientId, (response: TokenResponse) => {
@@ -82,7 +86,7 @@ authButton.addEventListener('click', async () => {
 createButton.addEventListener('click', async () => {
  if (!usableToken() || calendarId || busy) return;
  setBusy(true);
- say('Creating Roster calendar…');
+ say('Creating Roster calendarâ€¦');
  try {
   const result = await calendarApi<{ id: string }>('/calendars', token!, 'POST', {
    summary: 'Roster', timeZone: 'Australia/Sydney',
@@ -103,17 +107,17 @@ createButton.addEventListener('click', async () => {
 eventButton.addEventListener('click', async () => {
  if (!usableToken() || !calendarId || busy) return;
  setBusy(true);
- say('Inserting synthetic test event…');
+ say('Inserting synthetic test eventâ€¦');
  try {
-  const result = await calendarApi<{ id: string; htmlLink?: string }>(
-   `/calendars/${encodeURIComponent(calendarId)}/events`, token!, 'POST', {
-    summary: 'Roster Prototype 1 Test',
-    description: 'Synthetic test only. Not a real shift.',
-    start: { dateTime: '2026-11-03T12:00:00', timeZone: 'Australia/Sydney' },
-    end: { dateTime: '2026-11-03T12:30:00', timeZone: 'Australia/Sydney' },
-    reminders: { useDefault: false }
-   });
-  say(`PASS: Event inserted. Google event ID: ${result.id}`);
+  cleanup = undefined; cleanupButton.hidden = true;
+  const outcome = await ensureTest(calendarApi, calendarId, token!);
+  const result = outcome.event;
+  say(outcome.created ? 'PASS: One test event created.' : `PASS: Test event already exists; no new copy created.${outcome.duplicates.length ? ` Found ${outcome.duplicates.length} extra identical test event(s). Use the cleanup button below to remove those copies and keep one.` : ''}`);
+  if (outcome.duplicates.length) {
+   cleanup = {keepId: result.id, ids: outcome.duplicates.map(e => e.id)};
+   cleanupButton.textContent = `Remove ${cleanup.ids.length} extra identical test event(s), keep one`;
+   cleanupButton.hidden = false;
+  }
   eventLink.replaceChildren();
   if (result.htmlLink) {
    const link = document.createElement('a');
@@ -122,6 +126,18 @@ eventButton.addEventListener('click', async () => {
   }
  } catch (e) { say(`ERROR inserting event: ${errorMessage(e)}`); }
  finally { setBusy(false); }
+});
+
+cleanupButton.addEventListener('click', async () => {
+ if (!usableToken() || !calendarId || busy || !cleanup) return;
+ const approved = cleanup;
+ cleanup = undefined;
+ setBusy(true);
+ try {
+  const count = await removeExtras(calendarApi, calendarId, token!, approved.keepId, approved.ids);
+  say(`PASS: Removed ${count} extra identical test event(s); kept one.`);
+ } catch (e) { say(`Cleanup stopped: ${errorMessage(e)}. Tap Check / add test event again to rescan before retrying.`); }
+ finally { cleanupButton.hidden = true; setBusy(false); }
 });
 
 if (!clientId) say('SETUP REQUIRED: VITE_GOOGLE_CLIENT_ID is missing from the build. See README.');

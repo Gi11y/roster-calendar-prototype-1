@@ -1,4 +1,4 @@
-# Prototype 1 validation — 25 October 2026 (Australia/Sydney)
+# Prototype 1 validation â€” 25 October 2026 (Australia/Sydney)
 
 ## Passed
 
@@ -23,6 +23,12 @@ No real OAuth client ID or access token was supplied. No live Google requests, c
 
 No Safari, iOS home-screen popup, IndexedDB persistence across iPhone launches, real service-worker lifecycle/offline relaunch, installed icon or browser rendering was verified. The offline VM test is a logic test, not a device test. Local HTTP probing encountered execution-environment socket restrictions; no HTTP preview pass is claimed.
 
-Run README section 4 separately in Safari and home-screen mode. Record iOS version, mode, popup/token outcome, calendar/event result and error text. Calendar must be secondary Roster; synthetic event must be 3 November 2026 12:00–12:30 Australia/Sydney. Check Google Calendar display timezone when comparing. If standalone popup fails, record FAIL and use the plan's Safari-sync fallback; do not claim standalone support.
+Run README section 4 separately in Safari and home-screen mode. Record iOS version, mode, popup/token outcome, calendar/event result and error text. Calendar must be secondary Roster; synthetic event must be 3 November 2026 12:00â€“12:30 Australia/Sydney. Check Google Calendar display timezone when comparing. If standalone popup fails, record FAIL and use the plan's Safari-sync fallback; do not claim standalone support.
 
 Prototype 3 still owns lost-calendar-ID recovery and deleted-event-ID reuse. Do not clear IndexedDB or create a second Roster calendar to work around these unknowns. Synthetic event insertions are intentionally not idempotent in this limited prototype. No roster format or real shift hours were assumed.
+
+## v0.2 duplicate fix â€” 25 October 2026
+
+The original three-test record above describes the initial archive. The v0.2 revision adds 11 regression tests for stable identity, repeat import, legacy copies, pagination, HTTP 409, cancelled IDs, read failure, exact matching, approved cleanup, changed preview and lost responses. The total is now 14 tests. Local TypeScript/Vite and production artifact checks pass. Tests mock Google responses; real account/device regression testing remains necessary.
+
+The initial deployment to https://gi11y.github.io/roster-calendar-prototype-1/ succeeded in GitHub Actions, and the owner reported successful laptop OAuth and event insertion. That test exposed duplicates from automatically allocated event IDs. v0.2 prevents further identical insertions and offers cleanup after an explicit user click. No user calendar was modified by the local regression tests. Lost calendar recovery, full roster reconciliation and deleted-ID reuse remain out of scope.

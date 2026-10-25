@@ -10,11 +10,11 @@
  <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
  <link rel="apple-touch-icon" href="%BASE_URL%icons/icon-192.png" />
  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://accounts.google.com; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self'" />
- <title>Roster Calendar — Prototype 1</title>
+ <title>Roster Calendar â€” Prototype 1</title>
 </head>
 <body>
  <main>
-  <header><h1>Roster Calendar</h1><p>Prototype 1 · Google sign-in and event creation</p></header>
+  <header><h1>Roster Calendar</h1><p>Prototype 1 Â· Google sign-in and event creation</p></header>
   <section class="notice"><strong>Unofficial test app.</strong> Not affiliated with NSW Health. Use a personal Google account. No roster images are processed in this prototype.</section>
   <section>
    <h2>1. Connect Google</h2>
@@ -29,8 +29,9 @@
   </section>
   <section>
    <h2>3. Insert one test event</h2>
-   <button id="event" disabled>Insert test event</button>
-   <p class="small">Synthetic event: <strong>Roster Prototype 1 Test</strong>, 3 November 2026, 12:00–12:30 in Australia/Sydney. No real shift data. Each tap inserts another test event; use once per test.</p>
+   <button id="event" disabled>Check / add test event</button>
+   <button id="cleanup" hidden disabled>Remove extra identical test events</button>
+   <p class="small">Synthetic event: <strong>Roster Prototype 1 Test</strong>, 3 November 2026, 12:00â€“12:30 in Australia/Sydney. No real shift data. Repeated taps reuse an identical test event. Extra copies from older versions are shown before you choose to remove them.</p>
   </section>
   <section><h2>Diagnostics</h2><p id="mode"></p><p id="status" role="status" aria-live="polite">Ready.</p><p id="calendar"></p><p id="eventlink"></p><p id="sw"></p></section>
   <footer>Google access tokens are never written to local storage. Internet is required for sign-in and Calendar API calls.</footer>

@@ -44,10 +44,14 @@ export function tokenClient(clientId: string, onToken: (response: TokenResponse)
 export function scopeGranted(response: TokenResponse): boolean {
  return !!window.google?.accounts.oauth2.hasGrantedAllScopes(response, CALENDAR_SCOPE);
 }
-export async function calendarApi<T>(path: string, token: string, method = 'GET', body?: unknown): Promise<T> {
+export class CalendarApiError extends Error {
+ status: number;
+ constructor(status: number, detail: string) { super(`Google Calendar HTTP ${status}: ${detail}`); this.status = status; }
+}
+export async function calendarApi<T>(path: string, token: string, method = 'GET', body?: unknown, ifMatch?: string): Promise<T> {
  const response = await fetch(`https://www.googleapis.com/calendar/v3${path}`, {
   method, cache: 'no-store', credentials: 'omit',
-  headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+  headers: { Authorization: `Bearer ${token}`, ...(ifMatch ? { 'If-Match': ifMatch } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) },
   ...(body ? { body: JSON.stringify(body) } : {}),
  });
  const text = await response.text();
@@ -55,7 +59,7 @@ export async function calendarApi<T>(path: string, token: string, method = 'GET'
  try { data = text ? JSON.parse(text) : {}; } catch { data = { message: text }; }
  if (!response.ok) {
   const detail = data?.error?.message || data?.message || response.statusText;
-  throw new Error(`Google Calendar HTTP ${response.status}: ${detail}`);
+  throw new CalendarApiError(response.status, detail);
  }
  return data as T;
 }
