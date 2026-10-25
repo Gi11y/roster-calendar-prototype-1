@@ -57,8 +57,9 @@ authButton.addEventListener('click', async () => {
   return;
  }
  if (!clientId) return;
+ clearToken();
  // No await before requestAccessToken: this is essential for iOS popup testing.
- say('Opening Google popupâ€¦');
+ say('Opening Google popup…');
  setBusy(true);
  try {
   const client = tokenClient(clientId, (response: TokenResponse) => {
@@ -86,7 +87,7 @@ authButton.addEventListener('click', async () => {
 createButton.addEventListener('click', async () => {
  if (!usableToken() || calendarId || busy) return;
  setBusy(true);
- say('Creating Roster calendarâ€¦');
+ say('Creating Roster calendar…');
  try {
   const result = await calendarApi<{ id: string }>('/calendars', token!, 'POST', {
    summary: 'Roster', timeZone: 'Australia/Sydney',
@@ -107,7 +108,7 @@ createButton.addEventListener('click', async () => {
 eventButton.addEventListener('click', async () => {
  if (!usableToken() || !calendarId || busy) return;
  setBusy(true);
- say('Inserting synthetic test eventâ€¦');
+ say('Checking for the synthetic test event...');
  try {
   cleanup = undefined; cleanupButton.hidden = true;
   const outcome = await ensureTest(calendarApi, calendarId, token!);
