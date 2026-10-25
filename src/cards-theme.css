@@ -64,3 +64,7 @@
 .cards-app .calendar-minimal #calendar-apply-panel #apply-calendar{display:block;margin:0 auto;width:100%;max-width:360px;background:var(--cocoa);color:var(--ivory);text-decoration:none;font-size:16px;font-weight:600;min-height:48px}
 .cards-app .calendar-minimal #calendar-apply-panel #apply-calendar:disabled{background:#d8cbc5;color:#6b554b}
 .cards-app .calendar-minimal #calendar-apply-hint{font-size:12px;color:var(--muted);margin:10px auto 0;max-width:360px}
+
+.cards-app .calendar-minimal #calendar-removal-confirmation{display:flex;gap:10px;align-items:flex-start;text-align:left;background:#f0dfd9;border-radius:12px;padding:12px;margin:14px 0;font-size:13px}
+.cards-app .calendar-minimal #calendar-removal-confirmation input{flex:0 0 auto;margin-top:4px;width:20px;height:20px}
+.cards-app .calendar-minimal #open-recovery-check{font-size:14px}

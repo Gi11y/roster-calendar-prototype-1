@@ -44,6 +44,11 @@ test('comparison reads all pages and directly checks stable IDs outside the date
 test('missing IDs are new, but permission/network errors and pagination loops stop comparison',async()=>{
  const e=await desired();
  assert.equal((await compareCalendar(async()=>{throw{status:404};},'id','token',[e]))[0].kind,'new');
- for(const status of [401,403,410,500])await assert.rejects(()=>compareCalendar(async()=>{throw{status};},'id','token',[e]));
+ for(const status of [401,403,500])await assert.rejects(()=>compareCalendar(async()=>{throw{status};},'id','token',[e]));
  await assert.rejects(()=>compareCalendar(async()=>({items:[],nextPageToken:'same'}),'id','token',[e],coverage),/pagination/);
+});
+
+test('410 direct lookup is a recovery candidate rather than a new random ID',async()=>{
+ const e=await desired();const plan=await compareCalendar(async()=>{throw{status:410};},'id','token',[e]);
+ assert.equal(plan[0].kind,'restore');assert.equal(plan[0].id,e.id);
 });

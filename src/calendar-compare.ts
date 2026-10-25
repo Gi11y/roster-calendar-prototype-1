@@ -38,7 +38,7 @@ export function planComparison(approved:ApprovedEvent[],remote:RemoteEvent[],cov
   // Require both the stored roster date and actual Sydney start inside coverage.
   // Events moved across the boundary or missing metadata are never removal candidates.
   if(!validDate(original)||!actual||original<coverage.start||original>coverage.end||actual<coverage.start||actual>coverage.end)continue;
-  const protectedEvent=!!before.recurrence||!!before.recurringEventId||!!before.attendees?.length;
+  const protectedEvent=!!before.recurrence||!!before.recurringEventId||!!before.attendees?.length||!!before.locked||!!(before.eventType&&before.eventType!=='default');
   output.push({kind:protectedEvent?'conflict':'removed',id:before.id,before,reason:protectedEvent?'A managed event now has recurrence or guests; manual review is required.':'Managed event is absent from the approved roster inside the complete period you confirmed.'});
  }
  return output;
@@ -60,7 +60,7 @@ export async function compareCalendar(api:CalendarReadApi,calendarId:string,toke
  // Direct lookup finds existing IDs even if the event was moved outside the date window.
  for(const event of approved){
   try{const found=await api<RemoteEvent>(path+'/'+encodeURIComponent(event.id),token);if(found.id!==event.id)throw Error('Calendar returned a mismatched event ID.');byId.set(found.id,found);}
-  catch(error){if(!isStatus(error,404))throw error;}
+  catch(error){if(isStatus(error,410))byId.set(event.id,{id:event.id,status:'cancelled'});else if(!isStatus(error,404))throw error;}
  }
  return planComparison(approved,[...byId.values()],coverage);
 }

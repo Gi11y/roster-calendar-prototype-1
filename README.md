@@ -1,3 +1,13 @@
+## v0.18 — reviewed removals and deleted-shift recovery
+
+No OCR, shift defaults, auth scopes or token storage changes. The normal app can now apply removals within an explicitly confirmed complete roster period. Enable Include removals in Options, set both dates and confirm complete coverage, then Check calendar. Inspect every Remove row, confirm removal of those listed shifts, then Apply. The button states how many removals/restorations it includes. Only importer-owned deterministic IDs are eligible. Unrelated, moved-outside-period, recurring, guest-bearing, locked and special event types are protected.
+
+All targets are preflighted before any write, and re-read before their operation. Removals use the reviewed etag with If-Match, run after additions/updates/restorations, and are verified as absent/cancelled. A failure stops later operations. A new comparison resolves interrupted/uncertain operations without duplicating earlier saves.
+
+Deleted approved IDs appear as Restore. Open recovery check from the Apply area, read the synthetic event details, tick consent and Run recovery check. This separate test creates/deletes/restores/cleans up one synthetic event. Only a successful test with completed cleanup authorizes that insert-or-patch strategy for the current calendar connection. Reconnect, calendar change or token expiry clears this memory-only proof. Check calendar again after the test, review the Restore rows, then Apply. Patch recovery requires the same reviewed cancelled-event etag; missing tags, conflicts or unsupported recovery stop safely. IDs are never randomized to bypass tombstones. HTTP 410 on direct lookup is surfaced as recovery rather than a new event.
+
+Live account/device testing is still required for deletion and recovery. Automated tests use synthetic calendars and cover the coverage/removal-confirmation gates, stable identities, stale versions, boundary moves, unrelated/protected events, operation ordering, interrupted deletes, both recovery strategies, missing/foreign proof, missing version tags, and retries. Previously confirmed phone add/update behaviour should be regression-checked.
+
 ## v0.17 — apply reviewed new and updated shifts
 
 The normal app now has an Apply button after checking your Roster calendar. The button names the number of new/updated changes. No real event write occurs on connection, calendar selection, checking or screenshot review. Removal candidates remain preview-only; deleted-ID recovery and conflicts block Apply until resolved. Baseline/experimental reader pages remain read-only.

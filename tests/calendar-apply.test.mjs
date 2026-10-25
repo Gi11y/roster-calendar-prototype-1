@@ -14,6 +14,7 @@ function server(initial=[]){
   if(method==='GET'){if(!state.has(id))throw{status:404};return structuredClone(state.get(id));}
   if(method==='POST'){if(state.has(body.id))throw{status:409};const created={...structuredClone(body),etag:'v'+(++version),status:'confirmed'};state.set(body.id,created);return structuredClone(created);}
   if(method==='PATCH'){const current=state.get(id);if(!current)throw{status:404};assert.equal(etag,current.etag);const updated={...current,...structuredClone(body),etag:'v'+(++version)};state.set(id,updated);return structuredClone(updated);}
+  if(method==='DELETE'){const current=state.get(id);assert.equal(etag,current.etag);state.set(id,{id,status:'cancelled',etag:'v'+(++version)});return{};}
   throw Error('Unexpected method '+method);
  };
  return{api,state,calls,setHook(fn){hook=fn;},writes(){return calls.filter(c=>c.method!=='GET');}};
@@ -72,11 +73,10 @@ test('connection/review invalidation stops further writes even after a response 
  const result=await applyCalendarChanges(s.api,calendar,token,planComparison(events,[]),()=>{if(!current)throw Error('Connection changed');});
  assert.equal(result.complete,false);assert.equal(s.writes().length,1);assert.equal(result.items[1].kind,'not-attempted');
 });
-test('only reviewed new/updated changes are eligible, and removals are never sent',async()=>{
- assert.equal(applyEligibility([{kind:'restore'}]).count,0);assert.match(applyEligibility([{kind:'new'},{kind:'conflict'}]).reason,/Resolve/);
- const [after]=await desired(),removed=live({...after,id:'other'}),s=server([removed]);
- const result=await applyCalendarChanges(s.api,calendar,token,[...planComparison([after],[]),{kind:'removed',id:'other',before:removed,reason:''}]);
- assert.equal(result.complete,true);assert(s.state.has('other'));assert(s.writes().every(c=>c.method!=='DELETE'));
+test('removals and restorations require their specific approval gates',async()=>{
+ assert.equal(applyEligibility([{kind:'restore'}]).count,1);assert.match(applyEligibility([{kind:'restore'}]).reason,/recovery check/);
+ assert.match(applyEligibility([{kind:'new'},{kind:'conflict'}]).reason,/Resolve/);
+ const [after]=await desired(),s=server();await assert.rejects(applyCalendarChanges(s.api,calendar,token,[...planComparison([after],[]),{kind:'removed',id:'other',before:live(after),reason:''}]),/full roster/);assert.equal(s.writes().length,0);
 });
 test('bad event identity, duplicate plan IDs or unverified destination stop without writes',async()=>{
  const [after]=await desired(),s=server(),bad={...after,id:'invalid'};
@@ -92,4 +92,53 @@ test('turning a reminder off clears the previous overrides explicitly',async()=>
  const [after]=await desired(),before=live({...after,reminders:{useDefault:false,overrides:[{method:'popup',minutes:30}]}}),s=server([before]);
  await applyCalendarChanges(s.api,calendar,token,planComparison([after],[before]));
  assert.deepEqual(s.writes()[0].body.reminders,{useDefault:false,overrides:[]});
+});
+
+const coverage={start:'2026-11-01',end:'2026-11-30',confirmed:true};
+const removeOptions={coverage,removalsConfirmed:true};
+const recovery=strategy=>({recovery:{calendarId:calendar,strategy}});
+test('removes only a reviewed managed shift in confirmed coverage, with If-Match and deletion verification',async()=>{
+ const events=await desired(2),before=events.map(live),s=server(before),plan=planComparison([events[0]],before,coverage);
+ const result=await applyCalendarChanges(s.api,calendar,token,plan,undefined,undefined,removeOptions);
+ assert.equal(result.complete,true);assert.equal(result.items.find(i=>i.id===events[1].id).kind,'removed');
+ assert.equal(s.writes().length,1);assert.equal(s.writes()[0].method,'DELETE');assert.equal(s.writes()[0].etag,'v1');assert.equal(s.state.get(events[1].id).status,'cancelled');
+});
+test('removal needs both complete coverage and explicit removal confirmation',async()=>{
+ const events=await desired(2),before=events.map(live),plan=planComparison([events[0]],before,coverage);
+ for(const options of [{},{coverage},{coverage:{...coverage,confirmed:false},removalsConfirmed:true}]){const s=server(before);await assert.rejects(applyCalendarChanges(s.api,calendar,token,plan,undefined,undefined,options));assert.equal(s.writes().length,0);}
+});
+test('changed, boundary-moved, foreign, guest, recurring, locked and identity-invalid removal targets are protected',async()=>{
+ const events=await desired(2),before=events.map(live),plan=planComparison([events[0]],before,coverage);
+ for(const patch of [{etag:'v2'},{start:{dateTime:'2026-12-01T07:00:00+11:00'}},{extendedProperties:{}},{attendees:[{}]},{recurrence:['RRULE:FREQ=DAILY']},{locked:true},{eventType:'outOfOffice'},{extendedProperties:{private:{...events[1].extendedProperties.private,rosterType:'P'}}}]){
+  const s=server(before);Object.assign(s.state.get(events[1].id),patch);await assert.rejects(applyCalendarChanges(s.api,calendar,token,plan,undefined,undefined,removeOptions));assert.equal(s.writes().length,0);
+ }
+});
+test('a failed addition stops the batch before any removal',async()=>{
+ const events=await desired(3),before=[live(events[0]),live(events[2])],plan=planComparison(events.slice(0,2),before,coverage),s=server(before);s.setHook(({method})=>{if(method==='POST')throw Error('Offline');});
+ const result=await applyCalendarChanges(s.api,calendar,token,plan,undefined,undefined,removeOptions);
+ assert.equal(result.complete,false);assert.equal(s.writes().length,1);assert.equal(s.writes()[0].method,'POST');assert.notEqual(s.state.get(events[2].id).status,'cancelled');
+});
+test('already removed targets skip safely; a lost deletion response is not reported as success',async()=>{
+ const events=await desired(2),before=events.map(live),plan=planComparison([events[0]],before,coverage),s=server(before);s.state.delete(events[1].id);
+ const result=await applyCalendarChanges(s.api,calendar,token,plan,undefined,undefined,removeOptions);assert.equal(result.complete,true);assert.equal(s.writes().length,0);
+ const lost=server(before);lost.setHook(({method,state})=>{if(method==='DELETE'){state.delete(events[1].id);throw Error('Lost response');}});
+ const interrupted=await applyCalendarChanges(lost.api,calendar,token,plan,undefined,undefined,removeOptions);assert.equal(interrupted.complete,false);assert.match(interrupted.items.find(i=>i.kind==='failed').detail,/may have reached Google/);
+});
+test('restores cancelled stable IDs using the patch strategy validated for the same calendar',async()=>{
+ const [after]=await desired(),tombstone={id:after.id,status:'cancelled',etag:'deleted-v1'},s=server([tombstone]),plan=planComparison([after],[tombstone]);
+ const result=await applyCalendarChanges(s.api,calendar,token,plan,undefined,undefined,recovery('patch'));
+ assert.equal(result.complete,true);assert.equal(result.items[0].kind,'restored');assert.equal(s.writes()[0].method,'PATCH');assert.equal(s.writes()[0].etag,'deleted-v1');assert.equal(s.writes()[0].body.status,'confirmed');assert.equal(s.state.size,1);
+ const repeated=await applyCalendarChanges(s.api,calendar,token,plan,undefined,undefined,recovery('patch'));assert.equal(repeated.items[0].kind,'unchanged');assert.equal(s.writes().length,1);
+});
+test('insert recovery keeps the same ID and never invents a replacement on 409',async()=>{
+ const [after]=await desired(),tombstone={id:after.id,status:'cancelled'},plan=planComparison([after],[tombstone]),s=server([tombstone]);s.setHook(({method,state})=>{if(method==='POST')state.delete(after.id);});
+ const result=await applyCalendarChanges(s.api,calendar,token,plan,undefined,undefined,recovery('insert'));assert.equal(result.complete,true);assert.equal(s.writes()[0].body.id,after.id);assert.equal(s.state.size,1);
+ const collision=server([tombstone]);const failed=await applyCalendarChanges(collision.api,calendar,token,plan,undefined,undefined,recovery('insert'));assert.equal(failed.complete,false);assert.equal(collision.writes().length,1);assert.equal(collision.writes()[0].method,'POST');
+});
+test('recovery without passed proof, for another calendar, stale versions or conflicting metadata makes no writes',async()=>{
+ const [after]=await desired(),tombstone={id:after.id,status:'cancelled',etag:'d1'},plan=planComparison([after],[tombstone]);
+ for(const options of [{},{recovery:{calendarId:'other',strategy:'patch'}}]){const s=server([tombstone]);await assert.rejects(applyCalendarChanges(s.api,calendar,token,plan,undefined,undefined,options));assert.equal(s.writes().length,0);}
+ for(const patch of [{etag:undefined},{etag:'d2'},{attendees:[{}]},{extendedProperties:{private:{rosterImporter:'other'}}}]){
+  const s=server([{...tombstone,...patch}]);await assert.rejects(applyCalendarChanges(s.api,calendar,token,plan,undefined,undefined,recovery('patch')));assert.equal(s.writes().length,0);
+ }
 });
