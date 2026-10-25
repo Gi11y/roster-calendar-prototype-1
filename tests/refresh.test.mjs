@@ -9,7 +9,7 @@ function setup(fail=false){
 test('refresh changes only this app worker/cache and preserves stored calendar settings',async()=>{
  const s=setup();assert.equal(s.redirect(),undefined);assert.deepEqual(s.removed,[]);await s.click();
  assert.deepEqual(s.unregistered,[s.scope]);assert.deepEqual(s.removed,['roster-prototype1:/roster-calendar-prototype-1/:old']);
- const url=new URL(s.redirect());assert.equal(url.pathname,'/roster-calendar-prototype-1/cards.html');assert.equal(url.searchParams.get('v'),'0.22');assert(url.searchParams.get('refresh'));assert.equal(s.button.disabled,true);
+ const url=new URL(s.redirect());assert.equal(url.pathname,'/roster-calendar-prototype-1/cards.html');assert.equal(url.searchParams.get('v'),'0.23');assert(url.searchParams.get('refresh'));assert.equal(s.button.disabled,true);
 });
 test('a failed refresh stays on the recovery page with a retryable error',async()=>{
  const s=setup(true);await s.click();assert.equal(s.redirect(),undefined);assert.equal(s.button.disabled,false);assert.match(s.status.textContent,/Could not refresh/);assert.deepEqual(s.removed,[]);

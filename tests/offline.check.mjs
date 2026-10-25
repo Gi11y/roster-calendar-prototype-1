@@ -53,3 +53,8 @@ response=undefined;
 handlers.fetch({request:{method:'GET',url:root+'refresh.html',mode:'navigate'},respondWith(p){response=p;}});
 assert.equal(response,undefined);
 console.log('PASS: online HTML bypasses stale caches, offline HTML retains its complete build, refresh tools bypass service worker.');
+
+assert(stored.includes(root+'swap.html'));
+assert(readFileSync('dist/swap.html','utf8').includes('Swap a shift'));
+assert(html.includes(base+'swap.html?v=0.23'));
+console.log('PASS: shift swap page and landing link are included in the offline build.');

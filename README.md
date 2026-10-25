@@ -1,3 +1,13 @@
+## v0.23 — manual shift swaps
+
+Landing page now links to swap.html. Connect Google, choose your existing app-created Roster calendar, select a visible date range (up to 93 days), Find shifts and choose the original shift. Enter replacement date, role, shift label, start/end, next-day flag and reminder, then Review swap and Confirm. Uncheck Add a replacement shift for removal only. Hours are entered explicitly and use the existing Sydney/DST checks. No screenshot/OCR is needed.
+
+Only simple, versioned events with this importer's ownership marker and correct deterministic ID are selectable. Reviews are read-only. Different-date/type replacements are saved and verified before the original is deleted with its reviewed If-Match version. Same-date/type edits update that same event instead, preserving its ordinal and avoiding deleted-ID reuse. Destination collisions are never overwritten or randomly re-IDed. Browser locks serialize the same original across tabs; server version checks protect intervening edits. Google does not provide an atomic transaction across the two events, so a partial swap can leave the replacement saved and original still present. The app reports this and offers Retry this change. Swap metadata lets a re-reviewed partial swap recognise its own saved replacement rather than duplicate it.
+
+Previously deleted replacement IDs require the separate consented synthetic recovery test for the current calendar connection. Scope, access tokens, calendar selection and progress behaviour match the main flow: app-created event access plus read-only calendar list, tokens in memory only. Changing calendar/account or editing fields invalidates review. No shift swap is sent to the workplace or another person.
+
+Manual swaps change Google Calendar only. A later import of an older screenshot can propose the original shift again; review that comparison rather than applying outdated roster data. No OCR or roster-recognition rules changed. Real swap/retry/removal/recovery and iPhone/Pixel tests require the user's account/device. Automated tests use synthetic calendars and cover ownership, DST, read-only reviews, conditional updates/removal, target collisions, interrupted writes, idempotent retry and recovery gating.
+
 ## v0.22 — calendar-name loading after Google sign-in
 
 Immediately after a valid Google token returns, Calendar preview shows Google connected, Getting calendar names and an indeterminate progress bar. The existing elapsed-time/long-wait feedback remains active while the saved-calendar check, list fetch and candidate access checks finish. Calendar choices and setup actions stay hidden/disabled until this phase finishes. The same feedback is used by Refresh calendar list.
