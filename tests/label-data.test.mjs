@@ -13,3 +13,8 @@ test('white rounded-corner fragments do not become a night label',()=>{const p=s
 
 import {labelFromText} from '../src/card-data.ts';
 test('lowercase OCR letters normalise without accepting duplicate glyphs',()=>{assert.equal(labelFromText('p'),'P');assert.equal(labelFromText('a'),'A');assert.equal(labelFromText('n10'),'N10');assert.equal(labelFromText('Pp'),undefined);});
+
+import {pGlyphEvidence} from '../src/label-data.ts';
+function glyph(rows){const w=12,h=16,d=new Uint8ClampedArray(w*h*4);for(let i=0;i<w*h;i++)d.set([35,185,35,255],i*4);rows.forEach((row,y)=>[...row].forEach((v,x)=>{if(v==='1')d.set([0,0,0,255],((y+3)*w+x+3)*4);}));return isolateLabel(d,w,h,[35,185,35]);}
+test('clear P upper-loop and lower-stem contour supplies evidence',()=>{const p=glyph(['11110','11011','11011','11110','11000','11000','11000']);assert.equal(pGlyphEvidence(p)?.label,'P');});
+test('A, N and closed-box shapes never get P evidence',()=>{for(const rows of [['00100','01110','11011','11011','11111','11011','11011'],['11011','11111','11111','11011','11011','11011','11011'],['11111','11011','11011','11011','11011','11011','11111']])assert.equal(pGlyphEvidence(glyph(rows)),undefined);});
