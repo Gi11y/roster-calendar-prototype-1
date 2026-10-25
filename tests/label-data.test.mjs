@@ -7,3 +7,6 @@ test('two moderate matching readings can recover a short label',()=>{assert.equa
 test('strong conflicting letters stay uncertain',()=>{assert.equal(chooseLabel([{label:'A',confidence:91,source:'mono'},{label:'P',confidence:90,source:'normal'}]).label,undefined);});
 test('one weak reading or an unsupported N12 never creates a label',()=>{assert.equal(chooseLabel([{label:'N',confidence:42,source:'mono'}]).label,undefined);assert.equal(chooseLabel([{label:'N12',confidence:98,source:'mono'}]).label,undefined);});
 test('N10 and a strong single letter are retained',()=>{assert.equal(chooseLabel([{label:'N10',confidence:94,source:'mono'}]).label,'N10');assert.equal(chooseLabel([{label:'A',confidence:95,source:'mono'}]).label,'A');});
+
+test('white night-shift glyphs are isolated and marked for inversion',()=>{const p=sample();for(let y=3;y<12;y++)for(let x=4;x<11;x++)p.d.set([245,245,245,255],(y*p.w+x)*4);const r=isolateLabel(p.d,p.w,p.h,[35,185,35]);assert(r);assert.equal(r.lightInk,true);});
+test('white rounded-corner fragments do not become a night label',()=>{const p=sample();for(let y=0;y<6;y++)for(let x=0;x<3;x++)p.d.set([250,250,250,255],(y*p.w+x)*4);assert.equal(isolateLabel(p.d,p.w,p.h,[35,185,35]),undefined);});

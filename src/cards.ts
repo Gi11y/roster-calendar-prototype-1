@@ -39,7 +39,7 @@ function labelFrames(card:Card):{normal:HTMLCanvasElement;binary:HTMLCanvasEleme
  const isolated=isolateLabel(pixels.data,region.width,region.height,card.rgb);if(!isolated)return;
  const b=isolated.bounds,bg=.299*card.rgb[0]+.587*card.rgb[1]+.114*card.rgb[2];
  function frame(binary:boolean){const raw=document.createElement('canvas');raw.width=b.width;raw.height=b.height;const small=raw.getContext('2d')!,out=small.createImageData(b.width,b.height);
- for(let y=0;y<b.height;y++)for(let x=0;x<b.width;x++){const src=((b.y+y)*region.width+b.x+x)*4,dst=(y*b.width+x)*4;const lum=.299*pixels.data[src]+.587*pixels.data[src+1]+.114*pixels.data[src+2];const v=binary?(lum<bg*.74?0:255):Math.max(0,Math.min(255,Math.round((lum-bg*.1)/(bg*.9)*255)));out.data[dst]=out.data[dst+1]=out.data[dst+2]=v;out.data[dst+3]=255;}
+ for(let y=0;y<b.height;y++)for(let x=0;x<b.width;x++){const src=((b.y+y)*region.width+b.x+x)*4,dst=(y*b.width+x)*4;const lum=.299*pixels.data[src]+.587*pixels.data[src+1]+.114*pixels.data[src+2];const v=binary?(isolated!.lightInk?(lum>Math.min(245,bg+45)?0:255):(lum<bg*.74?0:255)):Math.max(0,Math.min(255,Math.round(isolated!.lightInk?255-(lum-bg)/(255-bg)*255:(lum-bg*.1)/(bg*.9)*255)));out.data[dst]=out.data[dst+1]=out.data[dst+2]=v;out.data[dst+3]=255;}
  small.putImageData(out,0,0);const canvas=document.createElement('canvas');canvas.width=b.width*8+32;canvas.height=b.height*8+32;const large=canvas.getContext('2d')!;large.fillStyle='#fff';large.fillRect(0,0,canvas.width,canvas.height);large.imageSmoothingEnabled=!binary;large.drawImage(raw,16,16,b.width*8,b.height*8);return canvas;}
  return{normal:frame(false),binary:frame(true),multiple:isolated.components>1};
 }
