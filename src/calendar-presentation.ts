@@ -1,3 +1,4 @@
+import {applyEligibility} from './calendar-apply.ts';
 import {DateTime} from 'luxon';
 import type {Comparison,RemoteEvent} from './calendar-compare.ts';
 export type CalendarStage='connect'|'select'|'compare'|'results';
@@ -24,4 +25,11 @@ export function renderCalendarChanges(root:HTMLElement,changes:Comparison[]):voi
  }
  for(const change of changes.filter(x=>x.kind!=='unchanged'))root.append(row(change));
  const same=changes.filter(x=>x.kind==='unchanged');if(same.length){const group=document.createElement('details');group.className='calendar-unchanged';const summary=document.createElement('summary');summary.textContent=same.length+' unchanged '+(same.length===1?'shift':'shifts');group.append(summary);for(const change of same)group.append(row(change));root.append(group);}
+}
+
+export function applyActionState(changes:Comparison[]|undefined,hasComparison:boolean,connected:boolean,verified:boolean,busy:boolean,pending:boolean,applying:boolean,result?:{complete:boolean}){
+ const eligibility=applyEligibility(changes||[]),count=eligibility.count;
+ const label=applying?'Saving…':result?(result.complete?'Changes saved':'Check again to continue'):!changes?'Check again to apply':count?'Apply '+count+' '+(count===1?'change':'changes'):'No changes to apply';
+ const reason=applying?'Keep this page open while your shifts are saved.':result?'Check the calendar again before making further changes.':!changes?'Check the calendar again to prepare a fresh preview.':!connected?'Reconnect Google, then check your calendar again.':!verified?'Choose and verify your Roster calendar.':pending?'Finish the synthetic test cleanup in Options before applying.':eligibility.reason||'Saves the listed new and updated shifts. No events will be removed.';
+ return{hidden:!hasComparison,disabled:busy||!connected||!verified||pending||!!result||!changes||!!eligibility.reason||!count,label,reason};
 }

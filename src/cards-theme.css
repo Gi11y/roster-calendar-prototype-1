@@ -59,3 +59,8 @@
 .calendar-minimal #calendar-result-actions{display:flex;flex-direction:column;gap:12px}
 .calendar-minimal #apply-calendar{width:100%;max-width:360px;align-self:center}
 .calendar-minimal #calendar-result-actions #compare-calendar{background:transparent;border:1px solid #b9a69b;color:#624d43}
+
+.cards-app .calendar-minimal #calendar-apply-panel{margin:18px 0 10px;text-align:center}
+.cards-app .calendar-minimal #calendar-apply-panel #apply-calendar{display:block;margin:0 auto;width:100%;max-width:360px;background:var(--cocoa);color:var(--ivory);text-decoration:none;font-size:16px;font-weight:600;min-height:48px}
+.cards-app .calendar-minimal #calendar-apply-panel #apply-calendar:disabled{background:#d8cbc5;color:#6b554b}
+.cards-app .calendar-minimal #calendar-apply-hint{font-size:12px;color:var(--muted);margin:10px auto 0;max-width:360px}

@@ -1,7 +1,7 @@
 import {applyCalendarChanges,applyEligibility,type ApplyResult} from './calendar-apply';
 import {createSignInPreparation} from './signin-preparation';
 import {readRosterChoices,includeVerifiedChoice,type CalendarChoice} from './calendar-list';
-import {calendarStage,comparisonCounts,renderCalendarChanges,calendarTime} from './calendar-presentation';
+import {calendarStage,comparisonCounts,renderCalendarChanges,calendarTime,applyActionState} from './calendar-presentation';
 import {loadGoogleScript,tokenClient,scopeGranted,calendarListGranted,CALENDAR_AUTH_SCOPES,CALENDAR_SCOPE,calendarApi as rawApi,type TokenResponse} from './google';
 import {readCalendarId,saveCalendarId} from './idb';
 import {verifyRosterCalendar,connectionLabel,type CalendarReadApi} from './calendar-selection';
@@ -37,10 +37,9 @@ export function mountCalendarReview(){
   cleanup.hidden=!pending;cleanup.disabled=busy||!connected||!verified||pending?.calendarId!==calendarId;
   removals.disabled=busy;from.disabled=busy||!removals.checked;to.disabled=busy||!removals.checked;
   if(apply){
-   const eligibility=applyEligibility(reviewedPlan||[]);
-   apply.hidden=!hasComparison||!reviewedPlan||!!eligibility.reason||!eligibility.count;
-   apply.disabled=busy||!connected||!verified||!!pending;
-   apply.textContent=applying?'Saving…':'Apply '+eligibility.count+' '+(eligibility.count===1?'change':'changes');
+   const action=applyActionState(reviewedPlan,hasComparison,connected,verified,busy,!!pending,applying,applyResult);
+   apply.hidden=action.hidden;apply.disabled=action.disabled;apply.textContent=action.label;
+   el('calendar-apply-hint').textContent=action.reason;
   }
   if(minimal){
    el<HTMLButtonElement>('back-to-review').disabled=busy;
