@@ -56,10 +56,9 @@ export function explicitRange(text:string):TimeRange|undefined{
 export function proposal(label:string|undefined,colour:Colour,text:string):{range?:TimeRange;basis:string;warning?:string}{
  const printed=explicitRange(text);if(printed)return{range:printed,basis:'Printed time range - verify against image'};
  if(/\d{1,2}[:.]\d{2}/.test(text))return{basis:'Needs review',warning:'Time text is present but incomplete, invalid or ambiguous. Defaults were not substituted.'};
- if(colour==='light')return{basis:'Educator shift - hours need review',warning:'Light green identifies an Educator role, not a 12-hour duration. No time range was printed or reliably read.'};
  let start:number,duration:number;
  if(label==='N'){start=19*60;duration=720;}else if(label==='N10'){start=21*60+45;duration=600;}
- else if((label==='A'||label==='P')&&colour!=='uncertain'){start=label==='A'?420:810;duration=480;}
- else return{basis:'Needs review',warning:'A clear label and, for A/P, a confirmed colour category are required.'};
- const end=(start+duration)%1440;return{range:{start:clock(Math.floor(start/60),start%60),end:clock(Math.floor(end/60),end%60),nextDay:start+duration>=1440,minutes:duration},basis:label==='N'||label==='N10'?'Inferred from confirmed night-label defaults':'Inferred from label and colour; confirm before import',warning:'No date/timezone has been assigned. Check the end time and any printed range.'};
+ else if((label==='A'||label==='P')){start=label==='A'?420:810;duration=480;}
+ else return{basis:'Needs review',warning:'A clear A, P, N or N10 label is required.'};
+ const end=(start+duration)%1440;return{range:{start:clock(Math.floor(start/60),start%60),end:clock(Math.floor(end/60),end%60),nextDay:start+duration>=1440,minutes:duration},basis:label==='N'||label==='N10'?'Inferred from confirmed night-label defaults':'Inferred 8-hour default; verify that no printed time was missed',warning:'No date/timezone has been assigned. Check the end time and any printed range.'};
 }

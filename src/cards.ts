@@ -35,7 +35,7 @@ function crop(x:number,y:number,width:number,height:number,mode='original',scale
 }
 
 function labelFrames(card:Card):{normal:HTMLCanvasElement;binary:HTMLCanvasElement;multiple:boolean}|undefined{
- const region=crop(card.x+2,card.y+2,Math.min(45,card.width-4),Math.min(24,Math.max(17,card.height*.35)),'original',1),ctx=region.getContext('2d',{willReadFrequently:true})!,pixels=ctx.getImageData(0,0,region.width,region.height);
+ const region=crop(card.x+2,card.y+2,Math.min(45,card.width-4),Math.min(24,Math.max(20,card.height*.35)),'original',1),ctx=region.getContext('2d',{willReadFrequently:true})!,pixels=ctx.getImageData(0,0,region.width,region.height);
  const isolated=isolateLabel(pixels.data,region.width,region.height,card.rgb);if(!isolated)return;
  const b=isolated.bounds,bg=.299*card.rgb[0]+.587*card.rgb[1]+.114*card.rgb[2];
  function frame(binary:boolean){const raw=document.createElement('canvas');raw.width=b.width;raw.height=b.height;const small=raw.getContext('2d')!,out=small.createImageData(b.width,b.height);
@@ -49,7 +49,7 @@ function render(){list.replaceChildren();for(const result of results){
  const thumb=crop(card.x-2,card.y-2,card.width+4,card.height+4,'original',2);thumb.className='card-thumb';section.append(thumb);
  const evidence=document.createElement('p');evidence.className='small';const cell=dayCell(card,grid);evidence.textContent='Original RGB '+card.rgb.join(', ')+'; hue '+card.hue+'°. '+(cell?'Grid column '+(cell.column+1)+(result.day?'; day OCR '+result.day+' (unverified)':' ; day unread/unconfirmed'):'Date grid unconfirmed')+'. No month/year assigned.';section.append(evidence);
  const colourLabel=document.createElement('label');colourLabel.textContent='Colour category ';const colour=document.createElement('select');colour.setAttribute('aria-label','Colour for card '+card.id);
- for(const [value,name] of [['uncertain','Uncertain - review'],['light','Light green: Educator shift (hours unconfirmed)'],['dark','Darker green: floor staff']]){const option=document.createElement('option');option.value=value;option.textContent=name;colour.append(option);}colour.value=card.colour;colour.disabled=busy;colourLabel.append(colour);section.append(colourLabel);
+ for(const [value,name] of [['uncertain','Uncertain - review'],['light','Light green: Educator shift'],['dark','Darker green: floor staff']]){const option=document.createElement('option');option.value=value;option.textContent=name;colour.append(option);}colour.value=card.colour;colour.disabled=busy;colourLabel.append(colour);section.append(colourLabel);
  const labelLabel=document.createElement('label');labelLabel.textContent='Shift label ';const label=document.createElement('select');label.setAttribute('aria-label','Shift label for card '+card.id);
  for(const value of ['', 'A','P','N','N10']){const option=document.createElement('option');option.value=value;option.textContent=value||'Unread / uncertain';label.append(option);}label.value=result.label||'';label.disabled=busy;labelLabel.append(label);section.append(labelLabel);
  if(result.labelPreview){const caption=document.createElement('p');caption.textContent='Enlarged label crop used for OCR:';section.append(caption);result.labelPreview.className='card-label-preview';result.labelPreview.setAttribute('aria-label','Enlarged top-left label for card '+card.id);section.append(result.labelPreview);}
