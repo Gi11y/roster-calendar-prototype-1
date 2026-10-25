@@ -29,4 +29,4 @@ self.addEventListener('fetch', event => {
  }};
 }
 const repo=process.env.GITHUB_REPOSITORY?.split('/')[1];
-export default defineConfig({base:repo&&!repo.endsWith('.github.io')?'/'+repo+'/':'/',plugins:[offlineShell()],build:{rollupOptions:{input:{main:resolve('index.html'),ocr:resolve('ocr.html'),cards:resolve('cards.html'),googleTest:resolve('google-test.html'),experimental:resolve('experimental-cards.html'),comparison:resolve('recognition-comparison.html')}}},server:{port:5173,strictPort:true}});
+export default defineConfig({base:repo&&!repo.endsWith('.github.io')?'/'+repo+'/':'/',plugins:[offlineShell()],build:{rollupOptions:{input:{main:resolve('index.html'),ocr:resolve('ocr.html'),cards:resolve('cards.html'),googleTest:resolve('google-test.html'),baseline:resolve('baseline-cards.html'),experimental:resolve('experimental-cards.html'),comparison:resolve('recognition-comparison.html')}}},server:{port:5173,strictPort:true}});

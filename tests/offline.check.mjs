@@ -33,3 +33,9 @@ response=undefined;
 handlers.fetch({request:{method:'GET',url:root+'cards.html?v=0.12',mode:'navigate'},respondWith(p){response=p;}});
 assert.equal(await (await response).text(),'cached');
 console.log('PASS: versioned review navigation works offline.');
+
+assert(stored.includes(root+'baseline-cards.html'));
+assert(readFileSync('index.html','utf8').includes('src="/src/new-reader.ts"'));
+assert(readFileSync('cards.html','utf8').includes('src="/src/new-reader.ts"'));
+assert(readFileSync('baseline-cards.html','utf8').includes('src="/src/cards.ts"'));
+console.log('PASS: normal entry points select the promoted reader and baseline remains precached.');

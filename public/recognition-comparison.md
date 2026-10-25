@@ -1,6 +1,6 @@
 # Recognition comparison — 25 October 2026
 
-The normal app uses the restored v0.9.1 reader with interface B. The v0.12.11 reader is isolated at experimental-cards.html. No recognition changes were promoted automatically during this comparison.
+During the comparison, the normal app used the restored v0.9.1 reader with interface B. After the user approved deployment, v0.14 promoted the measured v0.12.11 recognition code to the normal app. The baseline is retained at baseline-cards.html. The measurements below are unchanged.
 
 ## Result
 
@@ -50,6 +50,6 @@ B/E means baseline/experimental; paired counts are reader results, not fractions
 
 Both readers still misread two end times as 18:30 instead of the printed 19:30 in one full-roster case. The experimental reader also leaves six ranges for manual review. Automated tests do not demonstrate universal OCR accuracy.
 
-Keep the restored baseline as the normal app for now. Keep the newer reader available for controlled comparison, rather than mixing the whole rewrite into an interface change. The letter retries and printed-time checks have measurable benefits on this set; any later promotion should preserve this paired evidence, address the remaining wrong automatic times and be checked on Pixel/iPhone. No real N10 screenshot was present in this sample set.
+The baseline was retained as the normal app during comparison. The user subsequently approved deploying the newer reader; v0.14 now uses it by default, with the baseline retained for comparison. The letter retries and printed-time checks have measurable benefits on this set; any later promotion should preserve this paired evidence, address the remaining wrong automatic times and be checked on Pixel/iPhone. No real N10 screenshot was present in this sample set.
 
 The restoration and isolation build passed 130 automated tests, TypeScript/Vite production build and offline checks. Phone timing, real Google OAuth, deleted-ID recovery and real roster synchronization were not verified by this comparison.
