@@ -267,7 +267,7 @@ function dateReadout(){
 }
 el('copy-date-heading').addEventListener('click',async()=>{
  const output=el<HTMLTextAreaElement>('date-heading-output');
- try{if(!navigator.clipboard)throw Error('Clipboard unavailable');await navigator.clipboard.writeText(output.value);el('copy-date-heading-status').textContent='Copied. You can paste the date-reading details into this chat.';}
+ try{if(!navigator.clipboard)throw Error('Clipboard unavailable');await navigator.clipboard.writeText(output.value);el('copy-date-heading-status').textContent='Copied. You can paste the date-reading details into a message.';}
  catch{output.focus();output.select();el('copy-date-heading-status').textContent='Select and copy the text above, or send a screenshot of it.';}
 });
 
