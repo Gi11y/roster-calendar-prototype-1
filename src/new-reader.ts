@@ -323,7 +323,7 @@ function renderDateReview(){
  const datedDates=assignments.flatMap(a=>a.date?[a.date]:[]).sort();
  el('roster-date-range').textContent=datedDates.length?dateDisplay(datedDates[0])+(datedDates[0]!==datedDates[datedDates.length-1]?' – '+dateDisplay(datedDates[datedDates.length-1]):'')+(dated<results.length?' · '+(results.length-dated)+' need a date':''):results.length+' '+(results.length===1?'shift':'shifts')+' to check';
  el('auto-date-status').textContent=anchorSource==='auto'&&dateAnchor?dateExplanation+' Anchor: card '+dateAnchor.cardId+' = '+dateDisplay(dateAnchor.date)+'.'+(datedDates.length?' Review range: '+dateDisplay(datedDates[0])+' to '+dateDisplay(datedDates[datedDates.length-1])+'.':'')+' Use Change date anchor if this looks wrong.':anchorSource==='manual'?'Using your manual date anchor. Individual corrections remain available.':dateExplanation;
- el('date-anchor-status').textContent=dateAnchor?'Anchor: card '+dateAnchor.cardId+' = '+dateAnchor.date+'. Check any conflicts below. Manual date overrides are retained.':'No date anchor confirmed. Enter the exact date of one numbered card, or enter individual dates below.';
+ el('date-anchor-status').textContent=dateAnchor?'Dates are based on shift '+dateAnchor.cardId+' ('+dateDisplay(dateAnchor.date)+'). Check the remaining shifts against your screenshot. Dates you edited individually are kept.':'Choose a shift and enter its exact date from your screenshot. You can also edit dates individually below.';
 }
 prepareButton.addEventListener('click',async()=>{
  const revision=previewRevision;
