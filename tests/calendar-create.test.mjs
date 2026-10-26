@@ -1,5 +1,5 @@
 import{test}from'node:test';import assert from'node:assert/strict';
-import{ensureRosterCalendar,withCalendarCreationLock,firstTimeCalendarState}from'../src/calendar-create.ts';
+import{ensureRosterCalendar,withCalendarCreationLock,firstTimeCalendarState,calendarName}from'../src/calendar-create.ts';
 import{ROSTER_DESCRIPTION,calendarSetupId,isRosterMetadata}from'../src/calendar-selection.ts';
 const token='memory-only',setupId='a'.repeat(64),id=n=>n+'@group.calendar.google.com';
 function fixture(initial=[]){
@@ -65,4 +65,22 @@ test('unsupported creation locks fail before running a creation task',async()=>{
  const original=Object.getOwnPropertyDescriptor(globalThis,'navigator');Object.defineProperty(globalThis,'navigator',{configurable:true,value:{}});
  try{let ran=false;await assert.rejects(withCalendarCreationLock(async()=>{ran=true;}),/current Safari or Chrome/);assert.equal(ran,false);}
  finally{if(original)Object.defineProperty(globalThis,'navigator',original);else delete globalThis.navigator;}
+});
+
+test('custom calendar name is trimmed, created in Google and remains discoverable',async()=>{
+ const f=fixture();const result=await ensureRosterCalendar(f.api,token,f.settings,setupId,()=>{},'  Sam’s shifts  ');
+ assert.equal(result.calendar.summary,'Sam’s shifts');assert.equal(f.posts()[0].body.summary,'Sam’s shifts');
+ assert(isRosterMetadata(result.calendar.summary,result.calendar.description));
+ const again=await ensureRosterCalendar(f.api,token,f.settings,'b'.repeat(64),()=>{},'Another name');assert.equal(again.calendar.summary,'Sam’s shifts');assert.equal(f.posts().length,1);
+});
+test('blank calendar name defaults to Roster; invalid names stop before requests',async()=>{
+ assert.equal(calendarName('   '),'Roster');
+ for(const name of ['x'.repeat(101),'Morning\nRoster','Bad\u0000name']){
+  const f=fixture();await assert.rejects(ensureRosterCalendar(f.api,token,f.settings,setupId,()=>{},name),/calendar name/);assert.equal(f.calls.length,0);
+ }
+});
+test('custom name survives lost creation response without duplicate or rename',async()=>{
+ const f=fixture();f.state.lost=true;await assert.rejects(ensureRosterCalendar(f.api,token,f.settings,setupId,()=>{},'Night roster'),/Lost response/);
+ f.state.lost=false;const result=await ensureRosterCalendar(f.api,token,f.settings,'b'.repeat(64),()=>{},'Different name');
+ assert.equal(result.calendar.summary,'Night roster');assert.equal(f.posts().length,1);
 });

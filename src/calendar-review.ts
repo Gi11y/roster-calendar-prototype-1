@@ -26,6 +26,8 @@ export function mountCalendarReview(){
  let pending:{calendarId:string;id:string}|undefined;
  let choices:CalendarChoice[]=[],listAllowed=false,listReady=false,createdReady=false,loadingCalendarNames=false,calendarUnavailable=false;
  const create=document.getElementById('review-create-calendar') as HTMLButtonElement|null;
+ const calendarNameRow=document.getElementById('calendar-create-name-row');
+ const calendarNameInput=document.getElementById('calendar-create-name') as HTMLInputElement|null;
  const picker=document.getElementById('review-calendar-select') as HTMLSelectElement|null;
  const preparation=createSignInPreparation(loadGoogleScript,()=>refresh());
  const minimal=!!document.getElementById('calendar-overview');let hasComparison=false;let lastCounts:ReturnType<typeof comparisonCounts>|undefined;
@@ -80,6 +82,8 @@ export function mountCalendarReview(){
    el('calendar-step-copy').textContent=applyResult?'Check again before making further changes.':stage==='connect'?'Use your personal Google account.':stage==='select'?'Select the existing calendar from your working setup.':stage==='compare'?'Check your confirmed shifts against Google.':'Review the listed changes before applying.';
    if(create){
     const setup=firstTimeCalendarState(connected,verified,listAllowed,listReady,choices.length),firstTime=setup.showCreate;
+    if(calendarNameRow)calendarNameRow.hidden=!firstTime;
+    if(calendarNameInput)calendarNameInput.disabled=busy;
     create.hidden=!firstTime;create.disabled=busy||!storageReady||!!pending;create.textContent=busy?'Creating…':'Create my Roster calendar';
     if(firstTime){el('calendar-step-title').textContent=setup.title;el('calendar-step-copy').textContent=setup.copy;}
    }
@@ -166,7 +170,7 @@ export function mountCalendarReview(){
   const assertCurrent=()=>{if(connectionEpoch!==epoch)throw Error('Google account changed. Connect again.');requireToken();};
   try{
    const setupId=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');
-   const result=await withCalendarCreationLock(async()=>{assertCurrent();return ensureRosterCalendar(guardedApi(connectionEpoch),requireToken(),{readId:readCalendarId,saveId:saveCalendarId,readPending:readPendingCalendarCreation,savePending:savePendingCalendarCreation},setupId,assertCurrent);});
+   const result=await withCalendarCreationLock(async()=>{assertCurrent();return ensureRosterCalendar(guardedApi(connectionEpoch),requireToken(),{readId:readCalendarId,saveId:saveCalendarId,readPending:readPendingCalendarCreation,savePending:savePendingCalendarCreation},setupId,assertCurrent,calendarNameInput?.value||'Roster');});
    assertCurrent();
    if(result.kind==='choose'){choices=result.choices;listReady=true;renderChoices();say('Existing Roster calendars found. Choose one from the dropdown.');}
    else{calendarId=result.calendar.id;verified=true;createdReady=true;recoveryProof=undefined;choices=includeVerifiedChoice(choices,result.calendar);renderChoices();invalidate();say(result.kind==='created'?'Your Roster calendar is ready. No shifts have been added yet.':'Your existing Roster calendar is ready. No new calendar was created.');}

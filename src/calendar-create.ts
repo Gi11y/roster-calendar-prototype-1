@@ -8,8 +8,14 @@ export async function withCalendarCreationLock<T>(task:()=>Promise<T>):Promise<T
  if(!navigator.locks)throw Error('Calendar creation needs a current Safari or Chrome browser. You can still select an existing calendar.');
  return navigator.locks.request('roster-calendar:calendar-creation',task);
 }
-export async function ensureRosterCalendar(api:CalendarReadApi,token:string,settings:CalendarSettings,setupId:string,assertCurrent:()=>void=()=>{}):Promise<CalendarSetupResult>{
+export function calendarName(value:string):string{
+ const name=value.trim()||'Roster';
+ if(name.length>100||/[\u0000-\u001f\u007f]/.test(name))throw Error('Use a calendar name of up to 100 characters, without line breaks.');
+ return name;
+}
+export async function ensureRosterCalendar(api:CalendarReadApi,token:string,settings:CalendarSettings,setupId:string,assertCurrent:()=>void=()=>{},name='Roster'):Promise<CalendarSetupResult>{
  if(!/^[a-f0-9]{64}$/.test(setupId))throw Error('Invalid calendar setup identifier.');
+ const summary=calendarName(name);
  assertCurrent();const pending=await settings.readPending(),saved=await settings.readId();
  // A fresh, successful list and access check are mandatory before any creation.
  const choices=await readUsableRosterChoices(api,token);assertCurrent();
@@ -36,7 +42,7 @@ export async function ensureRosterCalendar(api:CalendarReadApi,token:string,sett
  const attempt={setupId};await settings.savePending(attempt);
  try{assertCurrent();}catch(error){await settings.savePending(undefined);throw error;}
  let result:RosterCalendar;
- try{result=await api<RosterCalendar>('/calendars',token,'POST',{summary:'Roster',timeZone:'Australia/Sydney',description:ROSTER_DESCRIPTION+'\nSetup ID: '+setupId});}
+ try{result=await api<RosterCalendar>('/calendars',token,'POST',{summary,timeZone:'Australia/Sydney',description:ROSTER_DESCRIPTION+'\nSetup ID: '+setupId});}
  catch(error){if([400,401,403,404,429].some(s=>isStatus(error,s)))await settings.savePending(undefined);throw error;}
  const id=validateCalendarId(result.id);assertCurrent();
  await settings.savePending({...attempt,calendarId:id});assertCurrent();
@@ -44,5 +50,5 @@ export async function ensureRosterCalendar(api:CalendarReadApi,token:string,sett
 }
 
 export function firstTimeCalendarState(connected:boolean,verified:boolean,listAllowed:boolean,listReady:boolean,count:number){
- return{showCreate:connected&&!verified&&listAllowed&&listReady&&count===0,title:'Create your Roster calendar',copy:'Keep your shifts together in a separate Google calendar called Roster.'};
+ return{showCreate:connected&&!verified&&listAllowed&&listReady&&count===0,title:'Create your Roster calendar',copy:'Keep your shifts together in a separate Google calendar. Choose a name below.'};
 }

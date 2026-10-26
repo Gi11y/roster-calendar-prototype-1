@@ -13,7 +13,7 @@ export function rosterChoices(entries:CalendarListEntry[]):CalendarChoice[]{
 }
 export function includeVerifiedChoice(choices:CalendarChoice[],calendar:RosterCalendar|undefined):CalendarChoice[]{
  if(!calendar||choices.some(c=>c.id===calendar.id))return choices;
- return[...choices,{id:calendar.id,label:calendar.summary+' (saved)'}];
+ return[...choices,{id:calendar.id,label:calendar.summary}];
 }
 export async function readRosterChoices(api:CalendarReadApi,token:string):Promise<CalendarChoice[]>{
  const entries:CalendarListEntry[]=[],seen=new Set<string>();let page:string|undefined;
