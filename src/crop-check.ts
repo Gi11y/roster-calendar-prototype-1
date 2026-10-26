@@ -15,7 +15,7 @@ export function checkRosterCrop(rect:Rect,cards:Rect[],width:number,height:numbe
  else if(weekdays&&rect.y>Math.max(0,weekdays.y-Math.max(80,cell)))messages.push('The month and year may be above this crop. Include the date heading where possible.');
  if(unbounded)messages.push('A week boundary is missing. Dates need review, and other calendar shifts will be kept.');
  if(!grid&&cards.length)messages.push('The calendar grid is unclear. You can still read the cards and enter dates manually.');
- if(!visible.length)messages.push('No complete shift cards are inside this crop. Expand it or choose another screenshot.');
+ if(!visible.length)messages.push(cards.length?'No complete shift cards are inside this crop. Expand it or choose another screenshot.':'No shift cards were detected in this preview. If the roster is small, crop closer before reading.');
  return{blocked:clipped>0||!visible.length&&cards.length>0,partial,clipped,excluded,messages};
 }
 export function removalCoverageAllowed(partial:boolean):boolean{return !partial;}
