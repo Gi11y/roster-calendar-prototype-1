@@ -1,5 +1,5 @@
 import{headerMonths}from'./auto-dates.ts';
-import type{Rect}from'./card-data.ts';
+import{dayCell,type Rect,type Card,type Grid}from'./card-data.ts';
 export function dateHeadingArea(width:number,height:number,left:number,right:number,gridTop:number,weekdayTop?:number):Rect|undefined{
  if(![width,height,left,right,gridTop].every(Number.isFinite)||width<=0||height<=0||right<=left)return;
  const x=Math.max(0,Math.floor(left)),endX=Math.min(width,Math.ceil(right)),bottom=Math.min(height,Math.max(0,Math.floor(weekdayTop??gridTop)));
@@ -36,4 +36,10 @@ export async function recoverHeaderMonthYear(primary:string,bands:Rect[],read:(b
   attempts++;try{const text=await read(band);readings.push({band,text});if(headerMonths(text).length)accepted.push(text);}catch(error){readings.push({band,error:String(error)});}
  }
  return{text:primary+(accepted.length?'\nFocused date heading:\n'+accepted.join('\n'):''),attempts,readings};
+}
+
+export function dayNumberArea(card:Card,grid:Grid|undefined):Rect|undefined{
+ const cell=dayCell(card,grid);if(!grid||cell?.top===undefined)return;
+ const unit=Math.max(1,Math.min(3,card.width/90));
+ return{x:grid.columns[cell.column]+2*unit,y:cell.top+2*unit,width:Math.min(35*unit,card.width*.45),height:Math.max(8*unit,Math.min(21*unit,card.y-cell.top-3*unit))};
 }

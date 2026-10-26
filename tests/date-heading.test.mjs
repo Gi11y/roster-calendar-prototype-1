@@ -1,4 +1,4 @@
-import{test}from'node:test';import assert from'node:assert/strict';import{dateHeadingArea,dateHeadingBands,recoverHeaderMonthYear}from'../src/date-heading.ts';import{headerMonths,inferDateAnchor}from'../src/auto-dates.ts';
+import{test}from'node:test';import assert from'node:assert/strict';import{dateHeadingArea,dateHeadingBands,dayNumberArea,recoverHeaderMonthYear}from'../src/date-heading.ts';import{headerMonths,inferDateAnchor}from'../src/auto-dates.ts';
 test('a clear initial month/year makes no retry requests',async()=>{let calls=0;const result=await recoverHeaderMonthYear('25 Oct 2026',[{}],async()=>{calls++;return'Nov 2025';});assert.equal(calls,0);assert.equal(result.attempts,0);assert.equal(result.text,'25 Oct 2026');});
 test('a focused heading recovers month/year without accepting department numbers',async()=>{
  let n=0;const r=await recoverHeaderMonthYear('265617 ACS GWW CRC',[{},{},{}],async()=>['252379 ACS','25 Oct 2026','07:00 - 15:30'][n++]);
@@ -30,4 +30,10 @@ test('heading search scales to wide screenshots instead of using a fixed 520 pix
 });
 test('rejected retry text is retained for diagnosis but never used as accepted month evidence',async()=>{
  const r=await recoverHeaderMonthYear('Weekday row:',[{x:0,y:0,width:100,height:30}],async()=>'Oet 2O26');assert.equal(r.readings[0].text,'Oet 2O26');assert.equal(headerMonths(r.text).length,0);assert(!r.text.includes('Oet'));
+});
+
+test('day-number crops expand with large cards instead of clipping digits at 21 pixels',()=>{
+ const grid={columns:[0,150,300,450,600,750,900,1050],rows:[100,330]};const card={id:1,x:5,y:145,width:139,height:160,rgb:[170,210,10],hue:70,colour:'light',coverage:.8};
+ const large=dayNumberArea(card,grid);assert(large.height>30);assert(large.width>45);assert(large.y+large.height<card.y);
+ const normal=dayNumberArea({...card,width:90},grid);assert.equal(normal.height,21);assert.equal(normal.width,35);assert.equal(dayNumberArea(card,undefined),undefined);
 });

@@ -1,4 +1,4 @@
-import{dateHeadingArea,dateHeadingBands,recoverHeaderMonthYear}from'./date-heading';
+import{dateHeadingArea,dateHeadingBands,dayNumberArea,recoverHeaderMonthYear}from'./date-heading';
 import{dateReadingHelp}from'./date-reading-help';
 import{markAllReviewed}from'./bulk-review';
 import{DEBUG,mountInstallHint}from'./coworker-ui';
@@ -31,7 +31,7 @@ const root=new URL(import.meta.env.BASE_URL+'ocr-assets/',location.origin).href;
 let headingBounds:Rect|undefined;let headingReadings:string[]=[];
 let originalImage:HTMLImageElement|undefined,cropRect:Rect|undefined,autoRect:Rect|undefined,sourceCards:Rect[]=[];
 let source:HTMLCanvasElement|undefined,cards:Card[]=[],grid:Grid|undefined,busy=false,generation=0,worker:Worker|undefined;
-interface Result {card:Card;label?:string;confidence?:number;text:string;day?:string;error?:string;labelPreview?:HTMLCanvasElement;labelNote?:string;timeText?:string;timeReason?:string;timeWarning?:string;timePreview?:HTMLCanvasElement;manualDate?:string;manualStart?:string;manualEnd?:string;manualNextDay?:boolean;reviewed?:boolean}
+interface Result {card:Card;label?:string;confidence?:number;text:string;day?:string;dayText?:string;dayConfidence?:number;error?:string;labelPreview?:HTMLCanvasElement;labelNote?:string;timeText?:string;timeReason?:string;timeWarning?:string;timePreview?:HTMLCanvasElement;manualDate?:string;manualStart?:string;manualEnd?:string;manualNextDay?:boolean;reviewed?:boolean}
 type Phase='start'|'crop'|'reading'|'review'|'calendar';
 let phase:Phase='start';const editingCards=new Set<number>();
 function showPhase(next:Phase,focus=false){phase=next;for(const [id,value] of [['start-screen','start'],['crop-screen','crop'],['reading-screen','reading'],['date-review','review'],['calendar-screen','calendar']])el(id).hidden=next!==value;el('advanced-tools').hidden=!DEBUG||next==='start'||next==='crop'||next==='reading';if(focus)document.querySelector<HTMLElement>('#'+(next==='crop'?'crop-screen':next==='review'?'date-review':'calendar-screen')+' h1')?.focus({preventScroll:false});}
@@ -222,7 +222,7 @@ result.label=decision.label;result.confidence=decision.confidence;result.labelNo
   }else result.timeReason+=' No text ink was found in that gap; metadata was not read as time.';
  }
  result.text+='\nTime boundary: '+result.timeReason;
- const cell=dayCell(c,grid);if(cell?.top!==undefined){await current.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'0123456789'});const day=await current.recognize(crop(grid!.columns[cell.column]+2,cell.top+2,Math.min(35,c.width*.45),Math.max(8,Math.min(21,c.y-cell.top-3))),{},{text:true,tsv:true});if(job!==generation)return;const digits=day.data.text.trim();if(/^(?:[1-9]|[12]\d|3[01])$/.test(digits)&&parseTsv(day.data.tsv||'').some(w=>w.confidence>=60))result.day=digits;}
+ const bounds=dayNumberArea(c,grid);if(bounds){await current.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'0123456789'});const image=crop(bounds.x,bounds.y,bounds.width,bounds.height);try{const day=await current.recognize(image,{},{text:true,tsv:true});if(job!==generation)return;const digits=day.data.text.trim(),words=parseTsv(day.data.tsv||'');result.dayText=digits;result.dayConfidence=words.length?Math.max(...words.map(w=>w.confidence)):0;if(/^(?:[1-9]|[12]\d|3[01])$/.test(digits)&&words.some(w=>w.confidence>=60))result.day=digits;}finally{image.width=image.height=1;}}
  }catch(e){result.error=String(e);}render();
  }
  if(grid&&job===generation){
@@ -270,7 +270,7 @@ function showAnchorPreview(){
 }
 anchorSelect.addEventListener('change',showAnchorPreview);
 function dateReadout(){
- return 'Roster '+(document.querySelector('.version')?.textContent||'')+'\nOriginal image: '+(originalImage?originalImage.naturalWidth+' x '+originalImage.naturalHeight:'unavailable')+'\nWorking image: '+(source?source.width+' x '+source.height:'unavailable')+'\nDate support check: '+(validDate('2020-02-29')&&headerMonths('Feb 2020').length===1?'passed':'failed')+'\nHeading crop: '+(headingBounds?JSON.stringify(headingBounds):'unavailable')+'\nHeading text:\n'+(header.value.trim()||'(No heading text was returned.)')+'\nHeading retries:\n'+(headingReadings.join('\n\n')||'(Not needed or no candidate lines found.)');
+ return 'Roster '+(document.querySelector('.version')?.textContent||'')+'\nOriginal image: '+(originalImage?originalImage.naturalWidth+' x '+originalImage.naturalHeight:'unavailable')+'\nWorking image: '+(source?source.width+' x '+source.height:'unavailable')+'\nDate support check: '+(validDate('2020-02-29')&&headerMonths('Feb 2020').length===1?'passed':'failed')+'\nHeading crop: '+(headingBounds?JSON.stringify(headingBounds):'unavailable')+'\nHeading text:\n'+(header.value.trim()||'(No heading text was returned.)')+'\nGrid: '+JSON.stringify(grid)+'\nDay readings: '+JSON.stringify(results.map(result=>({card:result.card.id,read:result.dayText,score:result.dayConfidence,accepted:result.day})))+'\nHeading retries:\n'+(headingReadings.join('\n\n')||'(Not needed or no candidate lines found.)');
 }
 el('copy-date-heading').addEventListener('click',async()=>{
  const output=el<HTMLTextAreaElement>('date-heading-output');
