@@ -3,10 +3,10 @@ import {mountCalendarProgress,withCalendarNamesProgress} from './calendar-progre
 import {ensureRosterCalendar,withCalendarCreationLock,firstTimeCalendarState} from './calendar-create';
 import {applyCalendarChanges,applyEligibility,type ApplyResult,type ApplyOptions} from './calendar-apply';
 import {createSignInPreparation} from './signin-preparation';
-import {readUsableRosterChoices,includeVerifiedChoice,type CalendarChoice} from './calendar-list';
+import {readRosterSelection,includeVerifiedChoice,type CalendarChoice} from './calendar-list';
 import {calendarStage,comparisonCounts,renderCalendarChanges,calendarTime,applyActionState} from './calendar-presentation';
 import {loadGoogleScript,tokenClient,scopeGranted,calendarListGranted,CALENDAR_AUTH_SCOPES,CALENDAR_SCOPE,calendarApi as rawApi,type TokenResponse} from './google';
-import {readCalendarId,saveCalendarId,readPendingCalendarCreation,savePendingCalendarCreation} from './idb';
+import {readCalendarId,saveCalendarId,clearCalendarId,readPendingCalendarCreation,savePendingCalendarCreation} from './idb';
 import {verifyRosterCalendar,connectionLabel,type CalendarReadApi} from './calendar-selection';
 import {compareCalendar,isStatus,type Coverage,type Comparison} from './calendar-compare';
 import {recoveryProbe,cleanupProbe,PROBE_TITLE} from './recovery-probe';
@@ -24,7 +24,7 @@ export function mountCalendarReview(){
  let reviewedPlan:Comparison[]|undefined,applyResult:ApplyResult|undefined,applying=false;
  const apply=document.getElementById('apply-calendar') as HTMLButtonElement|null;
  let pending:{calendarId:string;id:string}|undefined;
- let choices:CalendarChoice[]=[],listAllowed=false,listReady=false,createdReady=false,loadingCalendarNames=false;
+ let choices:CalendarChoice[]=[],listAllowed=false,listReady=false,createdReady=false,loadingCalendarNames=false,calendarUnavailable=false;
  const create=document.getElementById('review-create-calendar') as HTMLButtonElement|null;
  const picker=document.getElementById('review-calendar-select') as HTMLSelectElement|null;
  const preparation=createSignInPreparation(loadGoogleScript,()=>refresh());
@@ -100,12 +100,13 @@ export function mountCalendarReview(){
  function renderChoices(){if(!picker)return;picker.replaceChildren();const hint=document.createElement('option');hint.value='';hint.textContent='Choose Roster calendar';picker.append(hint);for(const choice of choices){const option=document.createElement('option');option.value=choice.id;option.textContent=choice.label;picker.append(option);}}
  async function loadChoices(connectionEpoch:number){
   if(!minimal||!listAllowed)return;
-  listReady=false;choices=await readUsableRosterChoices(guardedApi(connectionEpoch),requireToken());
+  const remembered=calendarId;
+  listReady=false;verified=false;createdReady=false;choices=[];renderChoices();invalidate();refresh();
+  const result=await readRosterSelection(guardedApi(connectionEpoch),requireToken(),remembered);
   if(connectionEpoch!==epoch)return;
-  listReady=true;
-  if(verified&&calendarId)choices=includeVerifiedChoice(choices,{id:calendarId,summary:'Roster'});
-  renderChoices();
-  if(!choices.length)say('');
+  choices=result.choices;calendarId=result.selectedId;verified=!!calendarId;calendarUnavailable=result.unavailable;
+  if(result.unavailable){recoveryProof=undefined;input.value='';await clearCalendarId();if(connectionEpoch!==epoch)return;}
+  listReady=true;renderChoices();say(result.unavailable?'Your previous Roster calendar is no longer available in this Google account. Choose another calendar, or create a new one.':'');
  }
  function setCalendarNamesLoading(loading:boolean){loadingCalendarNames=loading;if(loading)say('');refresh();}
  async function verifySaved(connectionEpoch:number){
@@ -132,10 +133,10 @@ export function mountCalendarReview(){
      listAllowed=minimal&&calendarListGranted(response);
      let notice='';
      await withCalendarNamesProgress(operationProgress,async()=>{
-      try{await verifySaved(connectionEpoch);}catch(error){notice='Saved calendar check: '+errorText(error);}
+      if(!listAllowed)try{await verifySaved(connectionEpoch);}catch(error){notice='Saved calendar check: '+errorText(error);}
       try{await loadChoices(connectionEpoch);}catch(error){notice+=' Calendar list: '+errorText(error);}
      },setCalendarNamesLoading);
-     if(minimal&&listAllowed&&!choices.length&&!notice)notice='';
+     if(minimal&&listAllowed&&calendarUnavailable&&!notice)notice='Your previous Roster calendar is no longer available in this Google account. Choose another calendar, or create a new one.';
      if(minimal&&!listAllowed)notice+=DEBUG?' Calendar-list permission was not granted. Use Options to enter the calendar ID, or reconnect to grant it.':' Reconnect Google and allow calendar access so we can find your Roster calendar.';
      say(minimal?notice:verified?'Google connected. Existing Roster calendar verified. Comparison is read only.':'Google connected. Enter your existing Roster calendar ID below.');
     }catch(error){say('Connection/calendar check: '+errorText(error));}

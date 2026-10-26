@@ -35,3 +35,9 @@ export async function readUsableRosterChoices(api:CalendarReadApi,token:string):
  }
  return usable;
 }
+
+// A successful current account list is authoritative; do not resurrect a remembered calendar.
+export async function readRosterSelection(api:CalendarReadApi,token:string,savedId:string|undefined):Promise<{choices:CalendarChoice[];selectedId:string|undefined;unavailable:boolean}>{
+ const choices=await readUsableRosterChoices(api,token);
+ return{choices,selectedId:savedId&&choices.some(c=>c.id===savedId)?savedId:undefined,unavailable:!!savedId&&!choices.some(c=>c.id===savedId)};
+}

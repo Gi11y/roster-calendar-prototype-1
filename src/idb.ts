@@ -38,3 +38,7 @@ export async function readPendingCalendarCreation():Promise<PendingCalendarCreat
 export async function savePendingCalendarCreation(value:PendingCalendarCreation|undefined):Promise<void>{
  const db=await openDb();try{await new Promise<void>((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite'),store=tx.objectStore(STORE);if(value)store.put(value,'calendarCreationPending');else store.delete('calendarCreationPending');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}finally{db.close();}
 }
+
+export async function clearCalendarId():Promise<void>{
+ const db=await openDb();try{await new Promise<void>((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).delete('calendarId');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}finally{db.close();}
+}

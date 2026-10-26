@@ -4,8 +4,8 @@ import{swapRangeError,shiftSearchResult}from'./shift-search-feedback';
 import './style.css';import './cards-theme.css';
 import{DateTime}from'luxon';import{addDays}from'./date-review';import{calendarTime}from'./calendar-presentation';
 import{loadGoogleScript,tokenClient,scopeGranted,calendarListGranted,CALENDAR_AUTH_SCOPES,calendarApi,type TokenResponse}from'./google';
-import{createSignInPreparation}from'./signin-preparation';import{readUsableRosterChoices,includeVerifiedChoice,type CalendarChoice}from'./calendar-list';
-import{readCalendarId,saveCalendarId}from'./idb';import{verifyRosterCalendar,type CalendarReadApi}from'./calendar-selection';
+import{createSignInPreparation}from'./signin-preparation';import{readRosterSelection,includeVerifiedChoice,type CalendarChoice}from'./calendar-list';
+import{readCalendarId,saveCalendarId,clearCalendarId}from'./idb';import{verifyRosterCalendar,type CalendarReadApi}from'./calendar-selection';
 import{mountCalendarProgress,withCalendarNamesProgress,type CalendarProgress}from'./calendar-progress';import{isStatus,type RemoteEvent}from'./calendar-compare';
 import{listSwapShifts,prepareSwap,applySwap,SwapRecoveryRequired,prepareExtraShift,applyExtraShift,type ExtraShiftPlan,type SwapPlan}from'./shift-swap';
 import{recoveryProbe,cleanupProbe}from'./recovery-probe';import type{ApplyOptions}from'./calendar-apply';
@@ -62,9 +62,14 @@ auth.addEventListener('click',async()=>{
    const seconds=Number(response.expires_in??3600);if(response.error||!response.access_token||!scopeGranted(response)||!Number.isFinite(seconds)||seconds<=60)throw Error('Google permission was not granted.');
    token=response.access_token;deadline=Date.now()+seconds*1000-60000;timer=setTimeout(()=>{clearToken();say('Google connection expired. Reconnect to continue.');},deadline-Date.now());
    say('');await withCalendarNamesProgress(progress,async()=>{
-    if(savedId)try{await verifyRosterCalendar(apiFor(connection),savedId,requireToken());calendarId=savedId;}catch(e){if(![403,404,410].some(s=>isStatus(e,s)))throw e;}
-    if(calendarListGranted(response))choices=await readUsableRosterChoices(apiFor(connection),requireToken());
-    if(calendarId)choices=includeVerifiedChoice(choices,{id:calendarId,summary:'Roster'});
+    if(calendarListGranted(response)){
+     const result=await readRosterSelection(apiFor(connection),requireToken(),savedId);if(connection!==epoch)throw Error('Connection changed.');
+     choices=result.choices;calendarId=result.selectedId;
+     if(result.unavailable){savedId=undefined;await clearCalendarId();if(connection!==epoch)throw Error('Connection changed.');}
+    }else{
+     if(savedId)try{await verifyRosterCalendar(apiFor(connection),savedId,requireToken());calendarId=savedId;}catch(e){if(![403,404,410].some(s=>isStatus(e,s)))throw e;}
+     if(calendarId)choices=includeVerifiedChoice(choices,{id:calendarId,summary:'Roster'});
+    }
     renderChoices();if(!calendarId&&choices.length===1){calendarId=choices[0].id;try{await saveCalendarId(calendarId);savedId=calendarId;}catch{}}
    },()=>refresh());
    say(calendarId?'Choose a period and tap Find shifts.':choices.length?'Choose your Roster calendar.':'No Roster calendar found. Add a roster from the landing page first, or reconnect and allow calendar-list access.');
