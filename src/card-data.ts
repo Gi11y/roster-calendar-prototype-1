@@ -51,7 +51,16 @@ export function findGrid(data:Uint8ClampedArray,width:number,height:number,cards
  const rowBottom=Math.min(height,Math.max(bottom,lastBorderY+3));
  const rowscore=new Array<number>(height).fill(0),left=columns[0],right=columns[7];
  for(let y=top;y<rowBottom;y++)for(let x=left;x<=right;x++)if(grey(data,(y*width+x)*4))rowscore[y]++;
- return {columns,rows:peaks(rowscore,(right-left)*.52).filter(y=>y>=top&&y<=rowBottom)};
+ let rows=peaks(rowscore,(right-left)*.52).filter(y=>y>=top&&y<=rowBottom);
+ // A fixed 45px lead-in can start below the first week border on large screenshots.
+ // Expand only if the earliest cards are unbounded, and still require visible grey pixels.
+ const firstCardTop=Math.min(...cards.map(c=>c.y));
+ if(!rows.length||rows[0]>firstCardTop){
+  const earlierTop=Math.max(0,Math.floor(Math.min(top,firstCardTop-cellWidth*.65)));
+  for(let y=earlierTop;y<top;y++)for(let x=left;x<=right;x++)if(grey(data,(y*width+x)*4))rowscore[y]++;
+  rows=peaks(rowscore,(right-left)*.52).filter(y=>y>=earlierTop&&y<=rowBottom);
+ }
+ return {columns,rows};
 }
 export function dayCell(card:Card,grid:Grid|undefined):{column:number;top?:number;bottom?:number}|undefined{
  if(!grid)return;const cx=card.x+card.width/2;const column=grid.columns.findIndex((x,i)=>i<7&&cx>=x&&cx<grid.columns[i+1]);if(column<0)return;

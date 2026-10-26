@@ -33,3 +33,16 @@ function tallFinalRow(spanLeave=false,visibleBottom=true){const w=400,h=520,d=ne
 test('tall final date row is completed from visible vertical borders',()=>{const p=tallFinalRow();const g=findGrid(p.d,p.w,p.h,p.cards);assert(g.rows.includes(420));for(const card of p.cards.slice(1))assert.equal(dayCell(card,g).bottom,420);});
 test('a leave bar can interrupt borders without truncating the last row',()=>{const p=tallFinalRow(true);const g=findGrid(p.d,p.w,p.h,p.cards);assert(g.rows.includes(420));assert.equal(g.rows.includes(505),false);});
 test('a missing final border is not invented from a distant footer line',()=>{const p=tallFinalRow(false,false);const g=findGrid(p.d,p.w,p.h,p.cards);assert.equal(g.rows.includes(420),false);assert.equal(g.rows.includes(505),false);assert.equal(dayCell(p.cards[1],g).bottom,undefined);});
+
+function largeFirstWeek(firstBorder=true){const w=1100,h=800,d=new Uint8ClampedArray(w*h*4).fill(255);const put=(x,y,rgb)=>d.set([...rgb,255],(y*w+x)*4);
+ for(let k=0;k<8;k++)for(let y=100;y<=700;y++)put(20+k*150,y,[225,225,225]);
+ for(const y of [...(firstBorder?[100]:[]),300,500,700])for(let x=20;x<=1070;x++)put(x,y,[225,225,225]);
+ for(const [x0,y0]of [[25,160],[175,360],[475,560]])for(let y=y0;y<y0+120;y++)for(let x=x0;x<x0+139;x++)put(x,y,[165,205,15]);
+ return{d,w,h,cards:detectCards(d,w,h)};
+}
+test('visible first week border above the 45px lead-in is recovered on a large screenshot',()=>{
+ const p=largeFirstWeek(),g=findGrid(p.d,p.w,p.h,p.cards);assert(g);assert(g.rows.includes(100));assert.deepEqual(dayCell(p.cards[0],g),{column:0,top:100,bottom:300});assert.equal(dayCell(p.cards[1],g).top,300);
+});
+test('first week border is not extrapolated when its pixels are absent',()=>{
+ const p=largeFirstWeek(false),g=findGrid(p.d,p.w,p.h,p.cards);assert(g);assert(!g.rows.includes(100));assert.equal(dayCell(p.cards[0],g).top,undefined);assert.deepEqual(g.rows,[300,500,700]);
+});
