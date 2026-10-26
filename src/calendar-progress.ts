@@ -1,6 +1,6 @@
 export interface CalendarProgress {phase:'calendars'|'listing'|'checking'|'validating'|'saving';completed:number;total?:number}
 export function calendarProgressText(progress:CalendarProgress):string{
- const names={calendars:'Getting calendar names',listing:'Reading your calendar',checking:'Checking shifts',validating:'Checking changes before saving',saving:'Saving changes'};
+ const names={calendars:'Getting calendar names',listing:'Reading your calendar',checking:'Checking shifts',validating:'Checking shifts before saving',saving:'Saving shifts'};
  const done=Math.max(0,Math.floor(progress.completed));
  return names[progress.phase]+(progress.total&&progress.total>0?' · '+Math.min(done,progress.total)+' of '+progress.total:done?' · '+done+' '+(done===1?'page loaded':'pages loaded'):'…');
 }

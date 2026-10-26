@@ -119,12 +119,12 @@ review.addEventListener('click',async()=>{
   el('swap-before').hidden=plan.kind==='extra';if(plan.kind!=='extra')line(el('swap-before'),plan.kind==='update'?'Current shift':'Remove this shift',plan.old);
   el('swap-after').hidden=!plan.after;if(plan.after)line(el('swap-after'),plan.kind==='extra'?'Add this shift':plan.kind==='update'?'Updated shift':'Replacement shift',plan.after);
   el('swap-plan-note').textContent=plan.kind==='extra'?'Only this extra shift will be added.':plan.kind==='update'?'This updates the same event, keeping one copy.':plan.after?'The replacement is saved and verified before the original is removed.':'Only this selected shift will be removed.';
-  confirm.textContent=plan.kind==='extra'?'Confirm extra shift':plan.kind==='remove'?'Confirm removal':plan.kind==='update'?'Confirm update':'Confirm swap';el('swap-preview').hidden=false;say('Review the change below before confirming.');el('swap-preview').scrollIntoView({block:'start'});el('swap-preview').querySelector<HTMLElement>('h2')?.focus({preventScroll:true});
+  confirm.textContent=plan.kind==='remove'?'Remove 1 Shift':'Save 1 Shift';el('swap-preview').hidden=false;say('Review the shift below before saving.');el('swap-preview').scrollIntoView({block:'start'});el('swap-preview').querySelector<HTMLElement>('h2')?.focus({preventScroll:true});
  }catch(e){if(DEBUG&&e instanceof SwapRecoveryRequired){el<HTMLDetailsElement>('swap-recovery').hidden=false;el<HTMLDetailsElement>('swap-recovery').open=true;}say(errorText(e));}finally{busy=false;progress.stop();refresh();}
 });
 async function save(){
  if(busy||!plan||!calendarId||probePending)return;const reviewed=structuredClone(plan),connection=epoch,version=revision;busy=true;refresh();
- const assertCurrent=()=>{if(connection!==epoch||version!==revision||calendarId!==reviewed.calendarId)throw Error('The reviewed change or account changed.');requireToken();};
+ const assertCurrent=()=>{if(connection!==epoch||version!==revision||calendarId!==reviewed.calendarId)throw Error('The reviewed shift or account changed.');requireToken();};
  try{
   if(!navigator.locks)throw Error('Use a current Safari or Chrome browser to confirm this change.');
   progress.start({phase:'validating',completed:0,total:2});

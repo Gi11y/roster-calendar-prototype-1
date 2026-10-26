@@ -1,3 +1,4 @@
+import{shiftCount,shiftSaveSummary}from'./shift-wording';
 import{DEBUG}from'./coworker-ui';
 import {mountCalendarProgress,withCalendarNamesProgress} from './calendar-progress';
 import {ensureRosterCalendar,withCalendarCreationLock,firstTimeCalendarState} from './calendar-create';
@@ -35,7 +36,7 @@ export function mountCalendarReview(){
  if(minimal){el('open-calendar-settings').addEventListener('click',()=>openOptions(true));el('review-reconnect').addEventListener('click',()=>auth.click());}
  const say=(text:string)=>{el('calendar-review-status').textContent=text;if(minimal)el('calendar-review-status').hidden=!text;};
  const errorText=(error:unknown)=>error instanceof Error?error.message:String(error);
- const invalidate=()=>{revision++;reviewedPlan=undefined;reviewedCoverage=undefined;if(removalApproval)removalApproval.checked=false;applyResult=undefined;hasComparison=false;lastCounts=undefined;if(minimal){el('comparison-results').hidden=true;el('comparison-summary').replaceChildren();}el('calendar-comparison').replaceChildren();el('comparison-status').textContent='Prepare reviewed events, then compare. Check your calendar to preview changes before applying.';};
+ const invalidate=()=>{revision++;reviewedPlan=undefined;reviewedCoverage=undefined;if(removalApproval)removalApproval.checked=false;applyResult=undefined;hasComparison=false;lastCounts=undefined;if(minimal){el('comparison-results').hidden=true;el('comparison-summary').replaceChildren();}el('calendar-comparison').replaceChildren();el('comparison-status').textContent='Prepare reviewed events, then compare. Check your calendar to preview changes before saving shifts.';};
  function refresh(){
   const connected=!!token&&Date.now()<deadline;
   el('review-connection').textContent=connectionLabel(connected,deadline);el('review-connection').dataset.connected=String(connected);
@@ -78,8 +79,8 @@ export function mountCalendarReview(){
    el('open-calendar-settings').textContent='Use an existing calendar';el('open-calendar-settings').hidden=!DEBUG||stage!=='select'||showPicker;el<HTMLButtonElement>('open-calendar-settings').disabled=busy||!storageReady;
    compare.hidden=stage!=='compare'&&stage!=='results';compare.textContent=applying?'Saving…':busy?'Checking…':hasComparison?'Check again':'Check calendar';
    el('calendar-account-actions').hidden=!connected;el<HTMLButtonElement>('review-reconnect').disabled=busy;
-   el('calendar-step-title').textContent=createdReady&&stage==='compare'?'Roster calendar ready ✓':applyResult?(applyResult.complete?'Shifts saved':'Some shifts need attention'):stage==='connect'?'Connect Google':stage==='select'?'Choose your Roster calendar':stage==='compare'?'Ready to compare':lastCounts&&(lastCounts.conflict)>0?'Some shifts need review':lastCounts&&(lastCounts.new+lastCounts.changed+lastCounts.removed+lastCounts.restore)>0?(lastCounts.new+lastCounts.changed+lastCounts.removed+lastCounts.restore)+' changes found':'Already up to date';
-   el('calendar-step-copy').textContent=applyResult?'Check again before making further changes.':stage==='connect'?'Use your personal Google account.':stage==='select'?'Select the existing calendar from your working setup.':stage==='compare'?'Check your confirmed shifts against Google.':'Review the listed changes before applying.';
+   el('calendar-step-title').textContent=createdReady&&stage==='compare'?'Roster calendar ready ✓':applyResult?(applyResult.complete?shiftSaveSummary(applyResult.items).headline:'Some shifts need attention'):stage==='connect'?'Connect Google':stage==='select'?'Choose your Roster calendar':stage==='compare'?'Ready to compare':lastCounts&&(lastCounts.conflict)>0?'Some shifts need review':lastCounts&&(lastCounts.new+lastCounts.changed+lastCounts.removed+lastCounts.restore)>0?(lastCounts.new+lastCounts.changed+lastCounts.removed+lastCounts.restore)+' shifts to save':'Already up to date';
+   el('calendar-step-copy').textContent=applyResult?'Check again before saving more shifts.':stage==='connect'?'Use your personal Google account.':stage==='select'?'Select the existing calendar from your working setup.':stage==='compare'?'Check your confirmed shifts against Google.':'Review the listed shifts before saving.';
    if(create){
     const setup=firstTimeCalendarState(connected,verified,listAllowed,listReady,choices.length),firstTime=setup.showCreate;
     if(calendarNameRow)calendarNameRow.hidden=!firstTime;
@@ -203,30 +204,31 @@ export function mountCalendarReview(){
   busy=true;applying=true;reviewedPlan=undefined;refresh();
   const assertCurrent=()=>{if(currentRevision!==revision||connectionEpoch!==epoch||calendarId!==destination||!verified)throw Error('The account, calendar or reviewed shifts changed. Check the calendar again.');requireToken();};
   try{
-   say('Checking the reviewed changes before saving…');
+   say('Checking your reviewed shifts before saving…');
    operationProgress.start({phase:'validating',completed:0,total:eligibility.count});
-   const result=await applyCalendarChanges(guardedApi(connectionEpoch),destination,requireToken(),plan,assertCurrent,(done,total)=>say('Saving changes… '+done+' of '+total),options,progress=>{if(currentRevision===revision&&connectionEpoch===epoch)operationProgress.update(progress);});
+   const result=await applyCalendarChanges(guardedApi(connectionEpoch),destination,requireToken(),plan,assertCurrent,(done,total)=>say('Saving shifts… '+done+' of '+total),options,progress=>{if(currentRevision===revision&&connectionEpoch===epoch)operationProgress.update(progress);});
    if(currentRevision===revision&&connectionEpoch===epoch){applyResult=result;renderApplyResult(result,plan);say('');}
-   else say('Saving stopped because the connection or reviewed shifts changed. Some saves may have reached Google. Reconnect and check again.');
-  }catch(error){say('Saving stopped: '+errorText(error)+' Check the calendar again before retrying.');}
+   else say('Saving stopped because the connection or reviewed shifts changed. Some shifts may already be saved. Reconnect and check again.');
+  }catch(error){say('Saving stopped: '+errorText(error)+' Check the calendar again before saving shifts again.');}
   finally{operationProgress.stop();busy=false;applying=false;reviewedPlan=undefined;refresh();}
  });
  function renderApplyResult(result:ApplyResult,plan:Comparison[]){
   const counts=(kind:ApplyResult['items'][number]['kind'])=>result.items.filter(x=>x.kind===kind).length;
   el('comparison-summary').replaceChildren();
-  for(const [kind,label]of [['created','Added'],['updated','Updated'],['removed','Removed'],['restored','Restored'],['unchanged','Already matched'],['failed','Needs checking'],['not-attempted','Not attempted']]as const){
+  for(const [kind,label]of [['created','Added'],['updated','Updated'],['removed','Removed'],['restored','Restored'],['unchanged','Already matched'],['failed','To check'],['not-attempted','Not attempted']]as const){
    if(!counts(kind))continue;
    const item=document.createElement('div'),number=document.createElement('strong'),caption=document.createElement('span');
-   number.textContent=String(counts(kind));caption.textContent=label;item.append(number,caption);el('comparison-summary').append(item);
+   number.textContent=String(counts(kind));caption.textContent=(counts(kind)===1?'Shift ':'Shifts ')+label.toLowerCase();item.append(number,caption);el('comparison-summary').append(item);
   }
   el('calendar-comparison').replaceChildren();
   for(const item of result.items){
    const change=plan.find(c=>c.id===item.id),when=calendarTime(change?.after||change?.before),row=document.createElement('details'),summary=document.createElement('summary'),copy=document.createElement('span'),badge=document.createElement('span'),detail=document.createElement('p');
    row.className='calendar-change';copy.className='calendar-change-copy';copy.textContent=when.date+' · '+when.hours+' · '+(change?.after?.summary||change?.before?.summary||'Roster shift');
-   badge.className='calendar-change-badge';badge.textContent=({created:'Added',updated:'Updated',removed:'Removed',restored:'Restored',unchanged:'Skipped',failed:'Check again','not-attempted':'Not attempted'}as const)[item.kind];
+   badge.className='calendar-change-badge';badge.textContent=({created:'Shift added',updated:'Shift updated',removed:'Shift removed',restored:'Shift restored',unchanged:'Shift unchanged',failed:'Shift needs checking','not-attempted':'Shift not attempted'}as const)[item.kind];
    detail.className='calendar-change-detail';detail.textContent=item.detail;summary.append(copy,badge);row.append(summary,detail);el('calendar-comparison').append(row);
   }
-  el('comparison-status').textContent=result.complete?'Your reviewed changes are saved. '+counts('created')+' added, '+counts('updated')+' updated, '+counts('removed')+' removed, '+counts('restored')+' restored.':'Saving stopped. Some changes may already be saved. Check again to see what remains; stable IDs prevent duplicate inserts.';
+  const summary=shiftSaveSummary(result.items);
+  el('comparison-status').textContent=result.complete?summary.headline+'.'+(summary.detail===summary.headline?'':' '+summary.detail+'.'):'Saving shifts stopped. '+summary.detail+'. Check the calendar again to see which shifts still need saving.';
  }
  function renderChanges(changes:Comparison[]){
   const root=el('calendar-comparison');root.replaceChildren();
@@ -259,7 +261,7 @@ export function mountCalendarReview(){
    const result=await recoveryProbe(guardedApi(connectionEpoch),destination,requireToken(),id);
    if(!result.cleanupRequired)pending=undefined;
    if(result.passed&&!result.cleanupRequired&&result.strategy&&connectionEpoch===epoch&&destination===calendarId){recoveryProof={calendarId:destination,strategy:result.strategy};say('Recovery check passed for this connection. Check calendar again to review restorations.');}
-   el('probe-status').textContent=(result.passed?'PASS: ':'NOT PASSED: ')+result.detail+' Test ID: '+result.id+'. Result applies only to this account/calendar connection. Real shifts still require review and Apply.';
+   el('probe-status').textContent=(result.passed?'PASS: ':'NOT PASSED: ')+result.detail+' Test ID: '+result.id+'. Result applies only to this account/calendar connection. Real shifts still require review and Save.';
   }catch(error){el('probe-status').textContent='Test stopped: '+errorText(error)+'. Test ID: '+id+'. Reconnect to the same Roster calendar and retry cleanup.';}
   finally{consent.checked=false;busy=false;refresh();}
  });

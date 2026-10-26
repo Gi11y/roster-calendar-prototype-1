@@ -10,13 +10,13 @@ export interface ApplyOptions {coverage?:Coverage;removalsConfirmed?:boolean;rec
 export function applyEligibility(changes:Comparison[],options:ApplyOptions={}):{count:number;reason:string}{
  const count=changes.filter(c=>['new','changed','removed','restore'].includes(c.kind)).length;
  let reason='';
- if(changes.some(c=>c.kind==='conflict'))reason='Resolve flagged shifts and check the calendar again before applying.';
- else if(changes.some(c=>c.kind==='restore')&&!options.recovery)reason='Run the deleted-shift recovery check for this connection before applying.';
+ if(changes.some(c=>c.kind==='conflict'))reason='Resolve flagged shifts and check the calendar again before saving shifts.';
+ else if(changes.some(c=>c.kind==='restore')&&!options.recovery)reason='Run the deleted-shift recovery check for this connection before saving shifts.';
  else if(changes.some(c=>c.kind==='removed')){
-  try{if(!options.coverage)throw Error('Confirm the full roster period in Options, then check again.');coverageBounds(options.coverage);if(!options.removalsConfirmed)reason='Confirm removal of the listed shifts below before applying.';}
+  try{if(!options.coverage)throw Error('Confirm the full roster period in Options, then check again.');coverageBounds(options.coverage);if(!options.removalsConfirmed)reason='Confirm removal of the listed shifts below before saving shifts.';}
   catch(error){reason=error instanceof Error?error.message:'Confirm the full roster coverage.';}
  }
- if(!reason&&!count)reason='No changes to apply.';
+ if(!reason&&!count)reason='No shifts to save.';
  return{count,reason};
 }
 function message(error:unknown):string{
@@ -67,7 +67,7 @@ export async function applyCalendarChanges(api:CalendarReadApi,calendarId:string
   if(next.kind==='unchanged')return'skip';
   if(change.kind==='new'&&!fresh)return'write';
   if(change.kind==='changed'&&next.kind==='changed'&&fresh?.etag&&change.before?.etag===fresh.etag)return'write';
-  throw Error('An event changed since your preview. Check the calendar again before applying.');
+  throw Error('An event changed since your preview. Check the calendar again before saving shifts.');
  }
  async function checkRemovalIdentity(event:RemoteEvent){
   const p=event.extendedProperties?.private,ordinal=Number(p?.rosterOrdinal);
@@ -110,7 +110,7 @@ export async function applyCalendarChanges(api:CalendarReadApi,calendarId:string
   }catch(error){
    // A lost response can still mean a write succeeded. A fresh comparison resolves it safely.
    const previous=items.findIndex(x=>x.id===change.id);if(previous>=0)items.splice(previous,1);
-   items.push({id:change.id,kind:'failed',detail:message(error)+(attempted?' A save may have reached Google; check again before retrying.':' No write was sent for this shift.')});
+   items.push({id:change.id,kind:'failed',detail:message(error)+(attempted?' This shift may already be saved; check the calendar again before retrying.':' No write was sent for this shift.')});
    for(const rest of operations.slice(index+1))items.push({id:rest.id,kind:'not-attempted',detail:'Stopped after the earlier issue. Check the calendar again.'});
    return{items,complete:false};
   }

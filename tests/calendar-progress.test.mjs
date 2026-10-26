@@ -1,7 +1,7 @@
 import{test}from'node:test';import assert from'node:assert/strict';import{calendarProgressText,mountCalendarProgress}from'../src/calendar-progress.ts';
 test('known work shows completed/total while paginated reads never invent a total',()=>{
  assert.equal(calendarProgressText({phase:'checking',completed:3,total:14}),'Checking shifts · 3 of 14');
- assert.equal(calendarProgressText({phase:'saving',completed:2,total:5}),'Saving changes · 2 of 5');
+ assert.equal(calendarProgressText({phase:'saving',completed:2,total:5}),'Saving shifts · 2 of 5');
  assert.equal(calendarProgressText({phase:'listing',completed:2}),'Reading your calendar · 2 pages loaded');
  assert(!calendarProgressText({phase:'listing',completed:0}).includes('%'));
 });

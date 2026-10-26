@@ -1,3 +1,4 @@
+import{shiftCount,shiftSaveSummary}from'./shift-wording.ts';
 import {applyEligibility,type ApplyOptions} from './calendar-apply.ts';
 import {DateTime} from 'luxon';
 import type {Comparison,RemoteEvent} from './calendar-compare.ts';
@@ -27,10 +28,10 @@ export function renderCalendarChanges(root:HTMLElement,changes:Comparison[]):voi
  const same=changes.filter(x=>x.kind==='unchanged');if(same.length){const group=document.createElement('details');group.className='calendar-unchanged';const summary=document.createElement('summary');summary.textContent=same.length+' unchanged '+(same.length===1?'shift':'shifts');group.append(summary);for(const change of same)group.append(row(change));root.append(group);}
 }
 
-export function applyActionState(changes:Comparison[]|undefined,hasComparison:boolean,connected:boolean,verified:boolean,busy:boolean,pending:boolean,applying:boolean,result?:{complete:boolean},options:ApplyOptions={}){
+export function applyActionState(changes:Comparison[]|undefined,hasComparison:boolean,connected:boolean,verified:boolean,busy:boolean,pending:boolean,applying:boolean,result?:{complete:boolean;items?:{kind:string}[]},options:ApplyOptions={}){
  const eligibility=applyEligibility(changes||[],options),count=eligibility.count;
  const removed=changes?.filter(c=>c.kind==='removed').length||0,restored=changes?.filter(c=>c.kind==='restore').length||0;
- const label=applying?'Saving…':result?(result.complete?'Changes saved':'Check again to continue'):!changes?'Check again to apply':count?'Apply '+count+' '+(count===1?'change':'changes')+(removed?' · '+removed+' to remove':'')+(restored?' · '+restored+' to restore':''):'No changes to apply';
- const reason=applying?'Keep this page open while your shifts are saved.':result?'Check the calendar again before making further changes.':!changes?'Check the calendar again to prepare a fresh preview.':!connected?'Reconnect Google, then check your calendar again.':!verified?'Choose and verify your Roster calendar.':pending?'Finish the synthetic test cleanup in Options before applying.':eligibility.reason||'Saves only the changes listed above, including any removals and restorations you confirmed.';
+ const label=applying?'Saving Shifts…':result?(result.complete?(result.items?shiftSaveSummary(result.items).headline:'Shifts Saved'):'Check Shifts Again'):!changes?'Check Shifts Again':count?'Save '+shiftCount(count):'No Shifts to Save';
+ const reason=applying?'Keep this page open while your shifts are saved.':result?'Check the calendar again before making further changes.':!changes?'Check the calendar again to prepare a fresh preview.':!connected?'Reconnect Google, then check your calendar again.':!verified?'Choose and verify your Roster calendar.':pending?'Finish the synthetic test cleanup in Options before saving shifts.':eligibility.reason||'Saves only the listed shifts.'+(removed?' '+shiftCount(removed)+' will be removed.':'')+(restored?' '+shiftCount(restored)+' will be restored.':'')+'';
  return{hidden:!hasComparison,disabled:busy||!connected||!verified||pending||!!result||!changes||!!eligibility.reason||!count,label,reason};
 }

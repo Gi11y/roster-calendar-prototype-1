@@ -1,3 +1,4 @@
+import{markAllReviewed}from'./bulk-review';
 import{DEBUG,mountInstallHint}from'./coworker-ui';
 import{shiftFinish}from'./manual-shift-time';
 import {proposeRosterCrop,scaleCrop,clampCrop,excludedCards} from './roster-crop';
@@ -249,6 +250,13 @@ function reviewState(result:Result,assigned:AssignedDate|undefined){
  const error=(unresolved?result.timeWarning:undefined)||timing.error||zoned.error||(!result.label?'Choose the shift type in Edit shift.':result.card.colour==='uncertain'?'Choose the staff role in Edit shift.':result.error?'We could not read this card clearly. Check its details.':undefined);
  return{p,start,end,nextDay,timing,zoned,error};
 }
+el('tick-all-shifts').addEventListener('click',()=>{
+ if(busy||!results.length)return;
+ const assignments=new Map(associateDates(results,grid,dateAnchor).map(a=>[a.cardId,a]));
+ results=markAllReviewed(results,result=>!!reviewState(result,assignments.get(result.card.id)).error);
+ renderDateReview();
+ el<HTMLButtonElement>('tick-all-shifts').focus({preventScroll:true});
+});
 function renderDateReview(){
  if(phase==='calendar')showPhase('review');
  invalidatePreview();
@@ -297,6 +305,9 @@ function renderDateReview(){
  prepareButton.disabled=busy||!results.length||reviewed!==results.length;reminderInput.disabled=busy;
  el('review-count').textContent=reviewed+' of '+results.length+' confirmed';
  prepareButton.textContent=reviewed===results.length&&results.length?'Review calendar changes':'Confirm remaining '+(results.length-reviewed===1?'shift':'shifts');
+ const needsCorrection=results.filter(result=>!!reviewState(result,map.get(result.card.id)).error).length;
+ el<HTMLButtonElement>('tick-all-shifts').disabled=busy||!results.some(result=>!result.reviewed&&!reviewState(result,map.get(result.card.id)).error);
+ el('tick-all-status').textContent=needsCorrection?needsCorrection+' '+(needsCorrection===1?'shift needs':'shifts need')+' correction before '+(needsCorrection===1?'it can':'they can')+' be ticked.':'';
  const datedDates=assignments.flatMap(a=>a.date?[a.date]:[]).sort();
  el('roster-date-range').textContent=datedDates.length?dateDisplay(datedDates[0])+(datedDates[0]!==datedDates[datedDates.length-1]?' – '+dateDisplay(datedDates[datedDates.length-1]):'')+(dated<results.length?' · '+(results.length-dated)+' need a date':''):results.length+' '+(results.length===1?'shift':'shifts')+' to check';
  el('auto-date-status').textContent=anchorSource==='auto'&&dateAnchor?dateExplanation+' Anchor: card '+dateAnchor.cardId+' = '+dateDisplay(dateAnchor.date)+'.'+(datedDates.length?' Review range: '+dateDisplay(datedDates[0])+' to '+dateDisplay(datedDates[datedDates.length-1])+'.':'')+' Use Change date anchor if this looks wrong.':anchorSource==='manual'?'Using your manual date anchor. Individual corrections remain available.':dateExplanation;
