@@ -1,3 +1,4 @@
+import{dateHeadingBands,recoverHeaderMonthYear}from'./date-heading';
 import{dateReadingHelp}from'./date-reading-help';
 import{markAllReviewed}from'./bulk-review';
 import{DEBUG,mountInstallHint}from'./coworker-ui';
@@ -12,7 +13,7 @@ import {sydneyRange,hoursText} from './sydney-time';
 import {prepareEvents,type ReviewedShift} from './approved-events';
 import {detectCards,findGrid,dayCell,labelFromText,proposal,explicitRange,type Card,type Grid,type Colour,type Rect} from './card-data';
 import {parseTsv} from './ocr-data';
-import {inferDateAnchor,weekdayBand} from './auto-dates';
+import {inferDateAnchor,weekdayBand,headerMonths} from './auto-dates';
 import {associateDates,validDate,validClock,reviewTiming,sortReview,type DateAnchor,type AssignedDate} from './date-review';
 import {shiftTextOnly,planTimeBand} from './card-content';
 import {isolateLabel,chooseLabel,pGlyphEvidence,pGlyphCheck,type LabelReading} from './experimental-label-data';
@@ -229,6 +230,18 @@ result.label=decision.label;result.confidence=decision.confidence;result.labelNo
  const heading=await current.recognize(crop(grid.columns[0],top,grid.columns[7]-grid.columns[0],Math.max(1,bottom-top),'original',2),{},{text:true,tsv:false});if(job!==generation)return;header.value=heading.data.text;
  const pixels=source.getContext('2d',{willReadFrequently:true})!.getImageData(0,0,source.width,source.height),band=weekdayBand(pixels.data,source.width,source.height,grid.columns[0],grid.columns[7],Math.min(...cards.map(c=>c.y)));
  if(band){await current.setParameters({tessedit_pageseg_mode:'7'});const weekdays=await current.recognize(crop(band.x,band.y,band.width,band.height,'original',3),{},{text:true,tsv:false});if(job!==generation)return;header.value+='\nWeekday row:\n'+weekdays.data.text;}
+ }
+ if(grid&&job===generation&&!headerMonths(header.value).length){
+  status.textContent='Reading the date heading more closely…';
+  const pixels=source.getContext('2d',{willReadFrequently:true})!.getImageData(0,0,source.width,source.height),band=weekdayBand(pixels.data,source.width,source.height,grid.columns[0],grid.columns[7],Math.min(...cards.map(c=>c.y)));
+  const bands=dateHeadingBands(pixels.data,source.width,source.height,grid.columns[0],grid.columns[7],grid.rows[0]??Math.min(...cards.map(c=>c.y)),band?.y);
+  const recovery=await recoverHeaderMonthYear(header.value,bands,async bounds=>{
+   if(job!==generation)throw Error('Reading cancelled.');
+   await current!.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:''});
+   const image=crop(bounds.x,bounds.y,bounds.width,bounds.height,'original',4);
+   try{const response=await current!.recognize(image,{},{text:true,tsv:false});return response.data.text;}finally{image.width=image.height=1;}
+  });
+  if(job!==generation)return;header.value=recovery.text;
  }
  if(job===generation)applyAutomaticDates(false);
  if(job===generation){progress.value=1;status.textContent='Finished reading '+active.length+' card(s). Review colour, label, printed times and date evidence. No calendar events created.'+(results.length>40?' Only the first 40 cards were read to limit memory/time.':'');}
