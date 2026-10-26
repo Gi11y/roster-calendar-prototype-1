@@ -24,8 +24,8 @@ self.addEventListener('fetch', event => {
  if(req.method !== 'GET' || url.origin !== ROOT.origin) return;
  const key = req.mode === 'navigate' ? new URL(url.pathname === ROOT.pathname ? 'index.html' : url.pathname, ROOT).href : req.url;
  if(!SHELL.includes(key)) return;
- if(req.mode === 'navigate') {
-  // Online navigation uses fresh HTML; offline falls back to a complete pinned build.
+ if(req.mode === 'navigate' || url.pathname.endsWith('.webmanifest')) {
+  // Online pages and installation metadata are fresh; offline uses the complete pinned build.
   // Do not put new HTML into an old cache without its matching assets.
   event.respondWith((async () => { try { const response = await fetch(req, {cache:'no-store'}); if(response.ok) return response; } catch {} const cached = await (await caches.open(CACHE)).match(key); if(cached) return cached; throw Error('App unavailable offline'); })());
   return;

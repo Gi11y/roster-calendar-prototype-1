@@ -64,3 +64,19 @@ const manifest=JSON.parse(readFileSync('dist/manifest.webmanifest','utf8'));
 assert.equal(manifest.display,'standalone');assert.equal(manifest.start_url,'./');
 for(const icon of manifest.icons){const bytes=readFileSync('dist/'+icon.src);const [w,h]=icon.sizes.split('x').map(Number);assert.equal(bytes.readUInt32BE(16),w);assert.equal(bytes.readUInt32BE(20),h);assert(stored.includes(root+icon.src));}
 console.log('PASS: clean shared links, change/privacy/install pages and installable manifest/icons are cached.');
+
+// An old controller must not pin installation metadata to its cached icon.
+for(const file of ['manifest.webmanifest','roster-cream-v1.webmanifest']){
+ online=true;response=undefined;
+ handlers.fetch({request:{method:'GET',url:root+file,mode:'cors'},respondWith(p){response=p;}});
+ assert.equal(await(await response).text(),'fresh online HTML');assert.equal(requests.at(-1).options.cache,'no-store');
+ online=false;response=undefined;
+ handlers.fetch({request:{method:'GET',url:root+file,mode:'cors'},respondWith(p){response=p;}});
+ assert.equal(await(await response).text(),'cached');
+}
+for(const file of ['index.html','cards.html','change.html','swap.html','privacy.html','install.html']){
+ const page=readFileSync('dist/'+file,'utf8');assert(page.includes('roster-cream-v1.webmanifest'));assert(page.includes('icons/icon-a-180.png'));
+}
+assert.deepEqual(JSON.parse(readFileSync('dist/roster-cream-v1.webmanifest','utf8')),manifest);
+assert(manifest.icons.every(icon=>icon.src.includes('icon-a-')));
+console.log('PASS: installation uses selected cream icon and fresh metadata online, with offline fallback.');
