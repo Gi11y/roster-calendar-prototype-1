@@ -1,11 +1,18 @@
 import{headerMonths}from'./auto-dates.ts';
 import type{Rect}from'./card-data.ts';
+export function dateHeadingArea(width:number,height:number,left:number,right:number,gridTop:number,weekdayTop?:number):Rect|undefined{
+ if(![width,height,left,right,gridTop].every(Number.isFinite)||width<=0||height<=0||right<=left)return;
+ const x=Math.max(0,Math.floor(left)),endX=Math.min(width,Math.ceil(right)),bottom=Math.min(height,Math.max(0,Math.floor(weekdayTop??gridTop)));
+ const top=Math.max(0,Math.floor(bottom-Math.max(520,(right-left)*.8)));
+ if(endX<=x||bottom<=top)return;
+ return{x,y:top,width:endX-x,height:bottom-top};
+}
 // Isolate short heading lines, keeping the selected-date control away from department text.
 export function dateHeadingBands(data:Uint8ClampedArray,width:number,height:number,left:number,right:number,gridTop:number,weekdayTop?:number):Rect[]{
  if(!Number.isFinite(width)||!Number.isFinite(height)||width<=0||height<=0||data.length<width*height*4||![left,right,gridTop].every(Number.isFinite)||right<=left)return[];
  const unit=Math.max(.5,Math.min(3,(right-left)/700));
  const x0=Math.max(0,Math.floor(left)),x1=Math.min(width,Math.ceil(left+(right-left)*.62)),span=x1-x0;
- const top=Math.max(0,Math.floor(gridTop-520)),bottom=Math.min(height,Math.floor(weekdayTop??gridTop));if(span<20||bottom<=top)return[];
+ const area=dateHeadingArea(width,height,left,right,gridTop,weekdayTop);if(!area||span<20)return[];const top=area.y,bottom=area.y+area.height;
  const ink:{y:number;left:number;right:number}[]=[];
  for(let y=top;y<bottom;y++){
   let count=0,min=x1,max=x0;
@@ -22,11 +29,11 @@ export function dateHeadingBands(data:Uint8ClampedArray,width:number,height:numb
  }
  return bands.reverse().slice(0,6);
 }
-export async function recoverHeaderMonthYear(primary:string,bands:Rect[],read:(band:Rect)=>Promise<string>):Promise<{text:string;attempts:number}>{
- if(headerMonths(primary).length)return{text:primary,attempts:0};
- const accepted:string[]=[];let attempts=0;
+export async function recoverHeaderMonthYear(primary:string,bands:Rect[],read:(band:Rect)=>Promise<string>):Promise<{text:string;attempts:number;readings:{band:Rect;text?:string;error?:string}[]}>{
+ if(headerMonths(primary).length)return{text:primary,attempts:0,readings:[]};
+ const accepted:string[]=[],readings:{band:Rect;text?:string;error?:string}[]=[];let attempts=0;
  for(const band of bands.slice(0,6)){
-  attempts++;try{const text=await read(band);if(headerMonths(text).length)accepted.push(text);}catch{/* A failed retry must not discard the shifts already read. */}
+  attempts++;try{const text=await read(band);readings.push({band,text});if(headerMonths(text).length)accepted.push(text);}catch(error){readings.push({band,error:String(error)});}
  }
- return{text:primary+(accepted.length?'\nFocused date heading:\n'+accepted.join('\n'):''),attempts};
+ return{text:primary+(accepted.length?'\nFocused date heading:\n'+accepted.join('\n'):''),attempts,readings};
 }

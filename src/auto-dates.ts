@@ -38,7 +38,7 @@ export function inferDateAnchor(items:DateCard[],grid:Grid|undefined,header:stri
  return{anchor:{cardId:seed.item.card.id,date,mondayFirst:true,source:'auto'},matches:best.matches,conflicts:best.conflicts,reason:'Dates detected from header month/year, weekday order and '+best.matches+' matching grid day(s).'+(best.conflicts?' '+best.conflicts+' day conflict(s) still need review.':'')};
 }
 export function weekdayBand(data:Uint8ClampedArray,width:number,height:number,left:number,right:number,firstCardY:number):Rect|undefined{
- const start=Math.max(0,Math.floor(firstCardY-650)),end=Math.min(height,Math.floor(firstCardY)),span=right-left;if(span<=0)return;
+ const start=Math.max(0,Math.floor(firstCardY-Math.max(650,(right-left)*1.1))),end=Math.min(height,Math.floor(firstCardY)),span=right-left;if(span<=0)return;
  const groups:Rect[]=[];let y=start;
  while(y<end){let coverage=0;for(let x=Math.max(0,Math.floor(left));x<Math.min(width,right);x++){const i=(y*width+x)*4,r=data[i],g=data[i+1],b=data[i+2];if(Math.max(r,g,b)-Math.min(r,g,b)<14&&r>=180&&r<=240)coverage++;}
  if(coverage/span<.65){y++;continue;}const top=y;y++;

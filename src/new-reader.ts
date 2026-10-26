@@ -1,4 +1,4 @@
-import{dateHeadingBands,recoverHeaderMonthYear}from'./date-heading';
+import{dateHeadingArea,dateHeadingBands,recoverHeaderMonthYear}from'./date-heading';
 import{dateReadingHelp}from'./date-reading-help';
 import{markAllReviewed}from'./bulk-review';
 import{DEBUG,mountInstallHint}from'./coworker-ui';
@@ -28,6 +28,7 @@ let dateAnchor:DateAnchor|undefined;
 let anchorSource:'auto'|'manual'|undefined;let dateExplanation='Read the cards to detect dates automatically.';
 const retryDates=el<HTMLButtonElement>('detect-dates'),anchorControls=el<HTMLDetailsElement>('anchor-controls');
 const root=new URL(import.meta.env.BASE_URL+'ocr-assets/',location.origin).href;
+let headingBounds:Rect|undefined;let headingReadings:string[]=[];
 let originalImage:HTMLImageElement|undefined,cropRect:Rect|undefined,autoRect:Rect|undefined,sourceCards:Rect[]=[];
 let source:HTMLCanvasElement|undefined,cards:Card[]=[],grid:Grid|undefined,busy=false,generation=0,worker:Worker|undefined;
 interface Result {card:Card;label?:string;confidence?:number;text:string;day?:string;error?:string;labelPreview?:HTMLCanvasElement;labelNote?:string;timeText?:string;timeReason?:string;timeWarning?:string;timePreview?:HTMLCanvasElement;manualDate?:string;manualStart?:string;manualEnd?:string;manualNextDay?:boolean;reviewed?:boolean}
@@ -44,7 +45,7 @@ const prepareButton=el<HTMLButtonElement>('prepare-events'),reminderInput=el<HTM
 function invalidatePreview(){calendarReview.setEvents([]);previewRevision++;el('event-preview').replaceChildren();el('event-preview-status').textContent='Review every detected card to prepare the event preview. Nothing is sent to Google.';prepareButton.disabled=true;}
 reminderInput.addEventListener('change',()=>renderDateReview());
 function controls(){retryDates.disabled=busy||!results.length||!header.value.trim();anchorSelect.disabled=busy;anchorDate.disabled=busy;weekOrder.disabled=busy;applyAnchor.disabled=busy||!results.length||!validDate(anchorDate.value);file.disabled=busy;detect.disabled=busy||!source;read.disabled=busy||!cards.length;}
-function clear(){if(originalImage)originalImage.src='';originalImage=undefined;cropRect=undefined;autoRect=undefined;sourceCards=[];const preview=document.getElementById('crop-preview') as HTMLCanvasElement|null;if(preview)preview.width=preview.height=1;showPhase('start');editingCards.clear();flowMessage('');invalidatePreview();anchorSource=undefined;dateExplanation='Read the cards to detect dates automatically.';el('auto-date-status').textContent=dateExplanation;anchorControls.open=false;dateAnchor=undefined;anchorDate.value='';weekOrder.checked=false;anchorSelect.replaceChildren();el('date-results').replaceChildren();el('review-count').textContent='';el('date-anchor-status').textContent='No date anchor confirmed.';generation++;void worker?.terminate();worker=undefined;if(source){source.width=1;source.height=1;}source=undefined;cards=[];results=[];grid=undefined;view.width=view.height=1;list.replaceChildren();header.value='';el('card-count').textContent='';el('grid-status').textContent='No grid detected yet.';busy=false;progress.value=0;file.value='';controls();}
+function clear(){headingBounds=undefined;headingReadings=[];if(originalImage)originalImage.src='';originalImage=undefined;cropRect=undefined;autoRect=undefined;sourceCards=[];const preview=document.getElementById('crop-preview') as HTMLCanvasElement|null;if(preview)preview.width=preview.height=1;showPhase('start');editingCards.clear();flowMessage('');invalidatePreview();anchorSource=undefined;dateExplanation='Read the cards to detect dates automatically.';el('auto-date-status').textContent=dateExplanation;anchorControls.open=false;dateAnchor=undefined;anchorDate.value='';weekOrder.checked=false;anchorSelect.replaceChildren();el('date-results').replaceChildren();el('review-count').textContent='';el('date-anchor-status').textContent='No date anchor confirmed.';generation++;void worker?.terminate();worker=undefined;if(source){source.width=1;source.height=1;}source=undefined;cards=[];results=[];grid=undefined;view.width=view.height=1;list.replaceChildren();header.value='';el('card-count').textContent='';el('grid-status').textContent='No grid detected yet.';busy=false;progress.value=0;file.value='';controls();}
 el('clear-cards').addEventListener('click',()=>{clear();status.textContent='Image, crops and results cleared.';});window.addEventListener('pagehide',clear);
 function engine():Promise<Engine>{if(window.Tesseract)return Promise.resolve(window.Tesseract);return script??=new Promise<Engine>((resolve,reject)=>{const s=document.createElement('script');s.src=root+'tesseract.min.js';s.onload=()=>window.Tesseract?resolve(window.Tesseract):reject(Error('OCR API missing'));s.onerror=()=>{script=undefined;reject(Error('Could not load OCR files. Check offline readiness.'));};document.head.append(s);});}
 const cropPreview=el<HTMLCanvasElement>('crop-preview');
@@ -145,7 +146,7 @@ function render(){list.replaceChildren();for(const result of results){
  const raw=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Recognition diagnostics (raw OCR and rejection reasons)';raw.open=!!result.text&&!result.label;raw.append(summary);const text=document.createElement('pre');text.textContent=result.error||result.text||'Not read yet.';raw.append(text);if(result.timePreview){result.timePreview.className='card-thumb';result.timePreview.setAttribute('aria-label','Focused time crop for card '+card.id);raw.append(result.timePreview);}section.append(raw);const back=document.createElement('a');back.href='#date-review';back.textContent='Back to chronological review';section.append(back);list.append(section);
  }
  syncAnchorOptions();renderDateReview();}
-read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;const readerStart=performance.now();showPhase('reading');flowMessage('');const job=++generation;busy=true;for(const r of results){r.reviewed=false;r.error=undefined;r.timeWarning=undefined;}controls();render();progress.value=0;status.textContent='Loading the on-device card reader...';let current:Worker|undefined;
+read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;const readerStart=performance.now();headingBounds=undefined;headingReadings=[];showPhase('reading');flowMessage('');const job=++generation;busy=true;for(const r of results){r.reviewed=false;r.error=undefined;r.timeWarning=undefined;}controls();render();progress.value=0;status.textContent='Loading the on-device card reader...';let current:Worker|undefined;
  try{const lib=await engine();if(job!==generation)return;current=await lib.createWorker('eng',1,{workerPath:root+'worker.min.js',corePath:root,langPath:root.replace(/\/$/,''),workerBlobURL:false,cacheMethod:'none',gzip:true});if(job!==generation){await current.terminate();return;}worker=current;
  const active=results.slice(0,40);
  for(let index=0;index<active.length;index++){if(job!==generation)return;const result=active[index],c=result.card;status.textContent='Reading card '+(index+1)+' of '+active.length+'...';progress.value=index/active.length;
@@ -225,11 +226,16 @@ result.label=decision.label;result.confidence=decision.confidence;result.labelNo
  }catch(e){result.error=String(e);}render();
  }
  if(grid&&job===generation){
- await current.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:''});
- const bottom=grid.rows[0]??Math.min(...cards.map(c=>c.y)),top=Math.max(0,bottom-520);
- const heading=await current.recognize(crop(grid.columns[0],top,grid.columns[7]-grid.columns[0],Math.max(1,bottom-top),'original',2),{},{text:true,tsv:false});if(job!==generation)return;header.value=heading.data.text;
  const pixels=source.getContext('2d',{willReadFrequently:true})!.getImageData(0,0,source.width,source.height),band=weekdayBand(pixels.data,source.width,source.height,grid.columns[0],grid.columns[7],Math.min(...cards.map(c=>c.y)));
- if(band){await current.setParameters({tessedit_pageseg_mode:'7'});const weekdays=await current.recognize(crop(band.x,band.y,band.width,band.height,'original',3),{},{text:true,tsv:false});if(job!==generation)return;header.value+='\nWeekday row:\n'+weekdays.data.text;}
+ headingBounds=dateHeadingArea(source.width,source.height,grid.columns[0],grid.columns[7],grid.rows[0]??Math.min(...cards.map(c=>c.y)),band?.y);
+ if(headingBounds){
+  await current.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:''});
+  const bounds=headingBounds,image=crop(bounds.x,bounds.y,bounds.width,bounds.height,'original',2);
+  try{const heading=await current.recognize(image,{},{text:true,tsv:false});if(job!==generation)return;header.value=heading.data.text;}catch(error){headingReadings.push('Main heading error: '+String(error));}finally{image.width=image.height=1;}
+ }
+ if(band){await current.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:''});const image=crop(band.x,band.y,band.width,band.height,'original',3);
+  try{const weekdays=await current.recognize(image,{},{text:true,tsv:false});if(job!==generation)return;header.value+='\nWeekday row:\n'+weekdays.data.text;}catch(error){headingReadings.push('Weekday reading error: '+String(error));}finally{image.width=image.height=1;}
+ }
  }
  if(grid&&job===generation&&!headerMonths(header.value).length){
   status.textContent='Reading the date heading more closely…';
@@ -242,6 +248,7 @@ result.label=decision.label;result.confidence=decision.confidence;result.labelNo
    try{const response=await current!.recognize(image,{},{text:true,tsv:false});return response.data.text;}finally{image.width=image.height=1;}
   });
   if(job!==generation)return;header.value=recovery.text;
+  headingReadings.push(...recovery.readings.map((reading,index)=>'Focused heading '+(index+1)+' '+JSON.stringify(reading.band)+':\n'+(reading.text??reading.error??'(empty)')));
  }
  if(job===generation)applyAutomaticDates(false);
  if(job===generation){progress.value=1;status.textContent='Finished reading '+active.length+' card(s). Review colour, label, printed times and date evidence. No calendar events created.'+(results.length>40?' Only the first 40 cards were read to limit memory/time.':'');}
@@ -263,7 +270,7 @@ function showAnchorPreview(){
 }
 anchorSelect.addEventListener('change',showAnchorPreview);
 function dateReadout(){
- return 'Roster '+(document.querySelector('.version')?.textContent||'')+'\nOriginal image: '+(originalImage?originalImage.naturalWidth+' x '+originalImage.naturalHeight:'unavailable')+'\nWorking image: '+(source?source.width+' x '+source.height:'unavailable')+'\nHeading text:\n'+(header.value.trim()||'(No heading text was returned.)');
+ return 'Roster '+(document.querySelector('.version')?.textContent||'')+'\nOriginal image: '+(originalImage?originalImage.naturalWidth+' x '+originalImage.naturalHeight:'unavailable')+'\nWorking image: '+(source?source.width+' x '+source.height:'unavailable')+'\nDate support check: '+(validDate('2020-02-29')&&headerMonths('Feb 2020').length===1?'passed':'failed')+'\nHeading crop: '+(headingBounds?JSON.stringify(headingBounds):'unavailable')+'\nHeading text:\n'+(header.value.trim()||'(No heading text was returned.)')+'\nHeading retries:\n'+(headingReadings.join('\n\n')||'(Not needed or no candidate lines found.)');
 }
 el('copy-date-heading').addEventListener('click',async()=>{
  const output=el<HTMLTextAreaElement>('date-heading-output');
