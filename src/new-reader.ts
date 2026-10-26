@@ -1,3 +1,4 @@
+import{dateReadingHelp}from'./date-reading-help';
 import{markAllReviewed}from'./bulk-review';
 import{DEBUG,mountInstallHint}from'./coworker-ui';
 import{shiftFinish}from'./manual-shift-time';
@@ -231,15 +232,23 @@ result.label=decision.label;result.confidence=decision.confidence;result.labelNo
  }
  if(job===generation)applyAutomaticDates(false);
  if(job===generation){progress.value=1;status.textContent='Finished reading '+active.length+' card(s). Review colour, label, printed times and date evidence. No calendar events created.'+(results.length>40?' Only the first 40 cards were read to limit memory/time.':'');}
- }catch(e){if(job===generation)status.textContent='Card OCR failed: '+String(e);}
+ }catch(e){if(job===generation){status.textContent='Card OCR failed: '+String(e);dateExplanation='Date reading did not finish on this device.';}}
  finally{if(current)await current.terminate().catch(()=>{});if(job===generation){worker=undefined;busy=false;controls();render();el('reader-metric').textContent='Newer reader · '+((performance.now()-readerStart)/1000).toFixed(1)+' seconds';showPhase('review',true);}}
 });
 
 function syncAnchorOptions(){
  const value=anchorSelect.value;anchorSelect.replaceChildren();
- for(const result of results){const option=document.createElement('option');option.value=String(result.card.id);const cell=dayCell(result.card,grid);option.textContent='Card '+result.card.id+(result.day?' - day OCR '+result.day:' - day unread')+(cell?' (column '+(cell.column+1)+')':'');anchorSelect.append(option);}
+ for(const result of results){const option=document.createElement('option');option.value=String(result.card.id);const cell=dayCell(result.card,grid);option.textContent='Shift '+result.card.id+' · '+(result.label==='P'?'Afternoon':result.label==='N'||result.label==='N10'?'Night':result.label==='A'?'Morning':'Check type')+(result.day?' · day '+result.day:'');anchorSelect.append(option);}
  if(results.some(r=>String(r.card.id)===value))anchorSelect.value=value;
+ showAnchorPreview();
 }
+function showAnchorPreview(){
+ const canvas=el<HTMLCanvasElement>('anchor-shift-preview'),selected=results.find(r=>String(r.card.id)===anchorSelect.value);canvas.hidden=!source||!selected;
+ if(!source||!selected)return;
+ const c=selected.card,cell=dayCell(c,grid),top=cell?.top??c.y;
+ const frame=crop(c.x-3,top,c.width+6,c.y+c.height+3-top,'original',2);canvas.width=frame.width;canvas.height=frame.height;canvas.getContext('2d')!.drawImage(frame,0,0);frame.width=frame.height=1;
+}
+anchorSelect.addEventListener('change',showAnchorPreview);
 function dateDisplay(date:string|undefined){if(!validDate(date))return'Unassigned date';return new Intl.DateTimeFormat('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(date+'T00:00:00Z'));}
 function reviewState(result:Result,assigned:AssignedDate|undefined){
  const p=proposal(result.label,result.card.colour,result.timeText??shiftTextOnly(result.text));
@@ -308,6 +317,9 @@ function renderDateReview(){
  const needsCorrection=results.filter(result=>!!reviewState(result,map.get(result.card.id)).error).length;
  el<HTMLButtonElement>('tick-all-shifts').disabled=busy||!results.some(result=>!result.reviewed&&!reviewState(result,map.get(result.card.id)).error);
  el('tick-all-status').textContent=needsCorrection?needsCorrection+' '+(needsCorrection===1?'shift needs':'shifts need')+' correction before '+(needsCorrection===1?'it can':'they can')+' be ticked.':'';
+ const dateIssue=dateReadingHelp(results.length-dated,results.length,dateExplanation);
+ el('date-reading-issue').textContent=dateIssue;el('date-reading-issue').hidden=!dateIssue;
+ if(dateIssue&&!dateAnchor&&!busy)anchorControls.open=true;
  const datedDates=assignments.flatMap(a=>a.date?[a.date]:[]).sort();
  el('roster-date-range').textContent=datedDates.length?dateDisplay(datedDates[0])+(datedDates[0]!==datedDates[datedDates.length-1]?' – '+dateDisplay(datedDates[datedDates.length-1]):'')+(dated<results.length?' · '+(results.length-dated)+' need a date':''):results.length+' '+(results.length===1?'shift':'shifts')+' to check';
  el('auto-date-status').textContent=anchorSource==='auto'&&dateAnchor?dateExplanation+' Anchor: card '+dateAnchor.cardId+' = '+dateDisplay(dateAnchor.date)+'.'+(datedDates.length?' Review range: '+dateDisplay(datedDates[0])+' to '+dateDisplay(datedDates[datedDates.length-1])+'.':'')+' Use Change date anchor if this looks wrong.':anchorSource==='manual'?'Using your manual date anchor. Individual corrections remain available.':dateExplanation;
