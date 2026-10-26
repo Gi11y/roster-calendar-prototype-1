@@ -262,6 +262,15 @@ function showAnchorPreview(){
  const frame=crop(c.x-3,top,c.width+6,c.y+c.height+3-top,'original',2);canvas.width=frame.width;canvas.height=frame.height;canvas.getContext('2d')!.drawImage(frame,0,0);frame.width=frame.height=1;
 }
 anchorSelect.addEventListener('change',showAnchorPreview);
+function dateReadout(){
+ return 'Roster '+(document.querySelector('.version')?.textContent||'')+'\nOriginal image: '+(originalImage?originalImage.naturalWidth+' x '+originalImage.naturalHeight:'unavailable')+'\nWorking image: '+(source?source.width+' x '+source.height:'unavailable')+'\nHeading text:\n'+(header.value.trim()||'(No heading text was returned.)');
+}
+el('copy-date-heading').addEventListener('click',async()=>{
+ const output=el<HTMLTextAreaElement>('date-heading-output');
+ try{if(!navigator.clipboard)throw Error('Clipboard unavailable');await navigator.clipboard.writeText(output.value);el('copy-date-heading-status').textContent='Copied. You can paste the date-reading details into this chat.';}
+ catch{output.focus();output.select();el('copy-date-heading-status').textContent='Select and copy the text above, or send a screenshot of it.';}
+});
+
 function dateDisplay(date:string|undefined){if(!validDate(date))return'Unassigned date';return new Intl.DateTimeFormat('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(date+'T00:00:00Z'));}
 function reviewState(result:Result,assigned:AssignedDate|undefined){
  const p=proposal(result.label,result.card.colour,result.timeText??shiftTextOnly(result.text));
@@ -332,6 +341,7 @@ function renderDateReview(){
  el('tick-all-status').textContent=needsCorrection?needsCorrection+' '+(needsCorrection===1?'shift needs':'shifts need')+' correction before '+(needsCorrection===1?'it can':'they can')+' be ticked.':'';
  const dateIssue=dateReadingHelp(results.length-dated,results.length,dateExplanation);
  el('date-reading-issue').textContent=dateIssue;el('date-reading-issue').hidden=!dateIssue;
+ el('date-reading-details').hidden=!dateIssue;el<HTMLTextAreaElement>('date-heading-output').value=dateReadout();el('copy-date-heading-status').textContent='';
  if(dateIssue&&!dateAnchor&&!busy)anchorControls.open=true;
  const datedDates=assignments.flatMap(a=>a.date?[a.date]:[]).sort();
  el('roster-date-range').textContent=datedDates.length?dateDisplay(datedDates[0])+(datedDates[0]!==datedDates[datedDates.length-1]?' – '+dateDisplay(datedDates[datedDates.length-1]):'')+(dated<results.length?' · '+(results.length-dated)+' need a date':''):results.length+' '+(results.length===1?'shift':'shifts')+' to check';
