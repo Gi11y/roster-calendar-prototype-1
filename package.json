@@ -11,7 +11,8 @@
     "test:production": "node tests/offline.check.mjs",
     "vendor:ocr": "node scripts/vendor-ocr.mjs",
     "prebuild": "npm run vendor:ocr",
-    "predev": "npm run vendor:ocr"
+    "predev": "npm run vendor:ocr",
+    "test:layout": "node --experimental-strip-types scripts/check-screenshot-fixtures.mjs"
   },
   "devDependencies": {
     "typescript": "~5.9.3",

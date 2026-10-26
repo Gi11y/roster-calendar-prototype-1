@@ -125,3 +125,11 @@ html:not([data-debug]) [data-debug-only]{display:none!important}
 .cards-app .date-reading-issue{font-size:14px;background:#faf7f3;border:1px solid #b58a78;border-radius:14px;padding:16px;margin:16px 4px}.cards-app .date-correction{margin:12px 4px 22px;padding:12px 16px;border:1px solid var(--line);border-radius:14px;background:#faf7f3}.cards-app .date-correction p,.cards-app .date-correction label{font-size:14px}.cards-app .date-correction label{display:block;margin:12px 0}.cards-app .date-correction input[type=checkbox]{width:auto;margin-right:6px}.cards-app .date-correction button{width:100%;margin:12px 0}.cards-app #anchor-shift-preview{display:block;max-width:180px;max-height:240px;width:auto;height:auto;margin:16px auto;border-radius:6px}
 
 .cards-app #date-heading-output{width:100%;font:13px/1.5 ui-monospace,monospace;min-height:170px;white-space:pre-wrap;border:1px solid var(--line);border-radius:8px;padding:10px;background:#fff;color:var(--ink)}.cards-app #copy-date-heading-status{font-size:13px}
+
+/* Screenshot preparation controls */
+.cards-app .crop-rotation{display:flex;justify-content:center;gap:1.25rem;flex-wrap:wrap;margin:.75rem 0}
+.cards-app .partial-choice{display:flex;align-items:flex-start;gap:.65rem;margin:1.25rem 0;line-height:1.5;font-size:.95rem}
+.cards-app .partial-choice input{flex:0 0 auto;width:1.15rem;height:1.15rem;margin:.2rem 0 0;accent-color:var(--cocoa,#795f52)}
+.cards-app .partial-choice input:disabled{opacity:1}
+.cards-app #crop-warning{line-height:1.5}
+.cards-app #partial-import-note{padding:.85rem;border:1px solid #b8a299;border-radius:12px;line-height:1.5}

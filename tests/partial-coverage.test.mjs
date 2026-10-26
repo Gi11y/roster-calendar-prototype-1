@@ -1,0 +1,2 @@
+import{test}from'node:test';import assert from'node:assert/strict';import{coverageBounds,planComparison}from'../src/calendar-compare.ts';
+test('partial source cannot become removal coverage even when complete-period confirmation is supplied',()=>{const coverage={start:'2026-11-01',end:'2026-11-30',confirmed:true,partial:true};assert.throws(()=>coverageBounds(coverage),/Partial screenshots/);assert.throws(()=>planComparison([{id:'test',extendedProperties:{private:{rosterDate:'2026-11-04'}}}],[],coverage),/Partial screenshots/);});

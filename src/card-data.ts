@@ -1,7 +1,7 @@
 export type Colour='light'|'dark'|'uncertain';
 export interface Rect {x:number;y:number;width:number;height:number}
 export interface Card extends Rect {id:number;rgb:[number,number,number];hue:number;colour:Colour;coverage:number}
-export interface Grid {columns:number[];rows:number[]}
+export interface Grid {columns:number[];rows:number[];partial?:boolean;startWeekday?:number}
 export function hue(r:number,g:number,b:number):number {const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;if(!d)return 0;let h=max===r?(g-b)/d:max===g?(b-r)/d+2:(r-g)/d+4;return(h*60+360)%360;}
 export function green(r:number,g:number,b:number):boolean{return g>65&&g>r*1.08&&g>b*1.2&&g-Math.min(r,b)>35;}
 export function classify(h:number,saturation:number):Colour {if(saturation<.35)return'uncertain';if(h>=52&&h<=90)return'light';if(h>=104&&h<=145)return'dark';return'uncertain';}
@@ -30,26 +30,30 @@ export function findGrid(data:Uint8ClampedArray,width:number,height:number,cards
  if(!cards.length)return;
  const top=Math.max(0,Math.min(...cards.map(c=>c.y))-45),bottom=Math.min(height,Math.max(...cards.map(c=>c.y+c.height))+60),scores=new Array<number>(width).fill(0);
  for(let x=0;x<width;x++)for(let y=top;y<bottom;y++)if(grey(data,(y*width+x)*4))scores[x]++;
+ const widths=cards.map(c=>c.width).sort((a,b)=>a-b),typical=widths[Math.floor(widths.length/2)];
  const lines=peaks(scores,(bottom-top)*.38);let columns:number[]|undefined,best=Infinity;
  for(let a=0;a<lines.length;a++)for(let b=a+1;b<lines.length;b++){
-  const step=lines[b]-lines[a];if(step<width*.05||step>width*.17)continue;const candidate:number[]=[];let error=0;
+  const step=(lines[b]-lines[a])/7;if(step<Math.max(18,typical*.65)||step>typical*2)continue;const candidate:number[]=[];let error=0;
   for(let k=0;k<8;k++){const target=lines[a]+step*k,near=lines.reduce((p,v)=>Math.abs(v-target)<Math.abs(p-target)?v:p,lines[0]);if(Math.abs(near-target)>Math.max(4,step*.07)){error=Infinity;break;}candidate.push(near);error+=Math.abs(near-target);}
-  if(new Set(candidate).size===8&&error<best&&cards.every(c=>c.x>=candidate[0]-4&&c.x+c.width<=candidate[7]+4)){best=error;columns=candidate;}
+  if(new Set(candidate).size===8&&error<best&&cards.every(c=>{const column=candidate.findIndex((x,i)=>i<7&&c.x+c.width/2>=x&&c.x+c.width/2<candidate[i+1]);return column>=0&&c.x>=candidate[column]-4&&c.x+c.width<=candidate[column+1]+4;})){best=error;columns=candidate;}
  }
  if(!columns)return;
+ return gridRows(data,width,height,cards,columns,top,bottom);
+}
+function gridRows(data:Uint8ClampedArray,width:number,height:number,cards:Card[],columns:number[],top:number,bottom:number):Grid{
  // Follow visible vertical borders below the last green card. Leave/secondary
  // entries can make the final date row much taller than the green card itself.
- const cellWidth=(columns[7]-columns[0])/7,lastCardBottom=Math.max(...cards.map(c=>c.y+c.height));
+ const cellWidth=(columns[columns.length-1]-columns[0])/(columns.length-1),lastCardBottom=Math.max(...cards.map(c=>c.y+c.height));
  let lastBorderY=Math.min(height-1,Math.floor(lastCardBottom));
  const allowedGap=Math.max(24,Math.ceil(cellWidth*1.25));
  for(let y=lastBorderY;y<height;y++){
   let supported=0;
   for(const column of columns){let present=false;for(let dx=-2;dx<=2;dx++){const x=Math.round(column)+dx;if(x>=0&&x<width&&grey(data,(y*width+x)*4)){present=true;break;}}if(present)supported++;}
-  if(supported>=5)lastBorderY=y;
+  if(supported>=Math.max(2,Math.ceil(columns.length*.6)))lastBorderY=y;
   if(y-lastBorderY>allowedGap)break;
  }
  const rowBottom=Math.min(height,Math.max(bottom,lastBorderY+3));
- const rowscore=new Array<number>(height).fill(0),left=columns[0],right=columns[7];
+ const rowscore=new Array<number>(height).fill(0),left=columns[0],right=columns[columns.length-1];
  for(let y=top;y<rowBottom;y++)for(let x=left;x<=right;x++)if(grey(data,(y*width+x)*4))rowscore[y]++;
  let rows=peaks(rowscore,(right-left)*.52).filter(y=>y>=top&&y<=rowBottom);
  // A fixed 45px lead-in can start below the first week border on large screenshots.
@@ -62,6 +66,22 @@ export function findGrid(data:Uint8ClampedArray,width:number,height:number,cards
  }
  return {columns,rows};
 }
+export function findPartialGrid(data:Uint8ClampedArray,width:number,height:number,cards:Card[]):Grid|undefined{
+ if(!cards.length)return;
+ const top=Math.max(0,Math.floor(Math.min(...cards.map(c=>c.y))-Math.max(45,...cards.map(c=>c.width*.65)))),bottom=Math.min(height,Math.ceil(Math.max(...cards.map(c=>c.y+c.height))+Math.max(60,...cards.map(c=>c.width))));
+ const scores=new Array<number>(width).fill(0);for(let x=0;x<width;x++)for(let y=top;y<bottom;y++)if(grey(data,(y*width+x)*4))scores[x]++;
+ const widths=cards.map(c=>c.width).sort((a,b)=>a-b),typical=widths[Math.floor(widths.length/2)];
+ const lines=peaks(scores,(bottom-top)*.38);let best:number[]|undefined,bestError=Infinity;
+ for(let a=0;a<lines.length;a++)for(let b=a+1;b<lines.length;b++){
+  const step=lines[b]-lines[a];if(step<Math.max(18,typical*.65)||step>typical*2)continue;
+  const candidate:number[]=[];let error=0;
+  for(let k=0;k<8;k++){const target=lines[a]+step*k;if(target>=width+4)break;const near=lines.reduce((p,v)=>Math.abs(v-target)<Math.abs(p-target)?v:p,lines[0]);if(Math.abs(near-target)>Math.max(4,step*.07)||candidate.includes(near))break;candidate.push(near);error+=Math.abs(near-target);}
+  if(candidate.length<2||candidate.length>7||!cards.every(c=>c.x>=candidate[0]-4&&c.x+c.width<=candidate[candidate.length-1]+4))continue;
+  if(!best||candidate.length>best.length||candidate.length===best.length&&error<bestError){best=candidate;bestError=error;}
+ }
+ if(!best)return;const grid=gridRows(data,width,height,cards,best,top,bottom);if(grid.rows.length<(best.length===2?3:2))return;return{...grid,partial:true};
+}
+
 export function dayCell(card:Card,grid:Grid|undefined):{column:number;top?:number;bottom?:number}|undefined{
  if(!grid)return;const cx=card.x+card.width/2;const column=grid.columns.findIndex((x,i)=>i<7&&cx>=x&&cx<grid.columns[i+1]);if(column<0)return;
  const top=grid.rows.filter(y=>y<=card.y).pop(),bottom=grid.rows.find(y=>y>card.y+card.height-3);return{column,top,bottom};

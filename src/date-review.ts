@@ -21,9 +21,10 @@ export function associateDates(items:DateCard[],grid:Grid|undefined,anchor:DateA
  const origin=selected?position(selected.card,grid):undefined;
  let anchorProblem:string|undefined;
  if(anchor&&!validDate(anchor.date))anchorProblem='The anchor date is invalid.';
- else if(anchor&&grid&&!anchor.mondayFirst)anchorProblem='Confirm that the screenshot columns run Monday to Sunday.';
- else if(anchor&&origin){const weekday=(new Date(anchor.date+'T00:00:00Z').getUTCDay()+6)%7;if(weekday!==origin.column)anchorProblem='The anchor weekday does not match its grid column. Check the chosen card/date or the grid.';}
- if(selected&&anchor&&selected.day&&Number(selected.day)!==Number(anchor.date.slice(-2)))anchorProblem='The chosen anchor conflicts with its OCR day number. Correct that card manually or check the anchor date.';
+ else if(anchor&&grid&&!anchor.mondayFirst)anchorProblem='Confirm the weekday column order.';
+ else if(anchor&&grid?.partial&&(!Number.isInteger(grid.startWeekday)||grid.startWeekday!<0||grid.startWeekday!+grid.columns.length-1>7))anchorProblem='Choose the first visible weekday.';
+ else if(anchor&&origin){const weekday=(new Date(anchor.date+'T00:00:00Z').getUTCDay()+6)%7;if(weekday!==origin.column+(grid?.startWeekday??0))anchorProblem='The anchor weekday does not match its grid column. Check the chosen card/date or the grid.';}
+ if(selected&&anchor&&anchor.source!=='manual'&&selected.day&&Number(selected.day)!==Number(anchor.date.slice(-2)))anchorProblem='The chosen anchor conflicts with its OCR day number. Correct that card manually or check the anchor date.';
  return items.map(item=>{
   if(item.manualDate!==undefined){return validDate(item.manualDate)?{cardId:item.card.id,date:item.manualDate,basis:'Date entered manually - confirm against screenshot'}:{cardId:item.card.id,basis:'Needs date review',warning:'The manually entered date is invalid.'};}
   if(!anchor||!selected)return{cardId:item.card.id,basis:'Needs date review',warning:'Choose one numbered card and confirm its exact date.'};

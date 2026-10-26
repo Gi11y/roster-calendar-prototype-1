@@ -52,3 +52,14 @@ The web manifest, standalone display, 192/512 icons and offline assets are inclu
 Tests cover OCR/parser baselines, crop geometry, date identity, timezone/DST, duplicate prevention, read-only comparisons, conditional mutations, partial retries, recovery gates, first-time calendar creation, progress feedback, debug visibility, clean navigation, extra shifts, and installation metadata. Night shifts ending on the first Sunday in April/October are checked across both transitions: N can be 13/11 elapsed hours and N10 11/9, while printed clocks remain unchanged. Ambiguous or nonexistent local clock times remain blocked.
 
 Private screenshots/raw pixels must never be committed. Automated calendar tests use in-memory synthetic data. Real Google creation/saves, recovery and device installs still require account/device testing.
+
+
+## Screenshot robustness (v0.26)
+
+The verified full-week reader remains the default. Grid pitch uses the observed card size and the full seven-day span rather than the whole image width or a rounded adjacent-column distance. This supports wide margins and fractional pixel pitches after resizing.
+
+Screenshot preparation offers explicit left/right rotation without assuming landscape images are sideways. Automatic crops keep the original image available for high-resolution text crops. Crops through a detected shift are blocked; omitted whole cards and missing grid boundaries are flagged as partial. Partial grids require the user to confirm the first visible weekday and one exact shift date. Partial imports cannot remove other calendar shifts, including through the comparison API.
+
+Only uncertain labels, days, hours and heading crops receive an additional size-normalised OCR retry. Conflicting readings remain flagged for review; upscaling cannot recover missing source detail. No automatic date guesses are made from the current date.
+
+See [the fixture guide](tests/fixtures/README.md) for local-only screenshot preparation, the optional layout benchmark, and real-device acceptance checks. The normal test suite includes generated layout variants, crop safety, rotation geometry and partial-date/removal safeguards. The private screenshot benchmark measures layout detection only, separately from date/time/label OCR and real iPhone/Pixel checks.

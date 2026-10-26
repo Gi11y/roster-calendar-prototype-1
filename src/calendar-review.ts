@@ -1,3 +1,4 @@
+import{removalCoverageAllowed}from'./crop-check';
 import{shiftCount,shiftSaveSummary}from'./shift-wording';
 import{DEBUG}from'./coworker-ui';
 import {mountCalendarProgress,withCalendarNamesProgress} from './calendar-progress';
@@ -19,6 +20,7 @@ export function mountCalendarReview(){
  const operationProgress=mountCalendarProgress(document.getElementById('calendar-operation'));
  const clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
  let token:string|undefined,deadline=0,timer:ReturnType<typeof setTimeout>|undefined,busy=false,storageReady=false,verified=false,calendarId:string|undefined,epoch=0,revision=0,events:ApprovedEvent[]=[];
+ let partialSource=false;
  let reviewedCoverage:Coverage|undefined,recoveryProof:ApplyOptions['recovery'];
  const removalApproval=document.getElementById('confirm-calendar-removals') as HTMLInputElement|null;
  const applyOptions=():ApplyOptions=>({coverage:reviewedCoverage,removalsConfirmed:!!removalApproval?.checked,recovery:recoveryProof});
@@ -46,7 +48,7 @@ export function mountCalendarReview(){
   compare.disabled=busy||!connected||!verified||!events.length;
   consent.disabled=busy;probe.disabled=busy||!connected||!verified||!consent.checked||!!pending;
   cleanup.hidden=!pending;cleanup.disabled=busy||!connected||!verified||pending?.calendarId!==calendarId;
-  removals.disabled=busy;from.disabled=busy||!removals.checked;to.disabled=busy||!removals.checked;
+  removals.disabled=busy||!removalCoverageAllowed(partialSource);from.disabled=busy||partialSource||!removals.checked;to.disabled=busy||partialSource||!removals.checked;const partialNote=document.getElementById('partial-import-note');if(partialNote)partialNote.hidden=!partialSource;
   if(apply){
    const action=applyActionState(reviewedPlan,hasComparison,connected,verified,busy,!!pending,applying,applyResult,applyOptions());
    apply.hidden=action.hidden;apply.disabled=action.disabled;apply.textContent=action.label;
@@ -183,7 +185,7 @@ export function mountCalendarReview(){
   if(busy||!verified||!calendarId||!events.length)return;
   busy=true;invalidate();refresh();const currentRevision=revision,connectionEpoch=epoch,destination=calendarId,approved=events.slice();
   try{
-   const coverage:Coverage|undefined=removals.checked?{start:from.value,end:to.value,confirmed:true}:undefined;
+   const coverage:Coverage|undefined=removalCoverageAllowed(partialSource)&&removals.checked?{start:from.value,end:to.value,confirmed:true,partial:partialSource}:undefined;
    say(minimal?'Checking your calendar…':'Reading existing Roster events. No calendar changes are being made.');
    operationProgress.start({phase:'checking',completed:0,total:approved.length});
    const changes=await compareCalendar(guardedApi(connectionEpoch),destination,requireToken(),approved,coverage,progress=>{if(currentRevision===revision&&connectionEpoch===epoch)operationProgress.update(progress);});
@@ -275,5 +277,5 @@ export function mountCalendarReview(){
  document.addEventListener('visibilitychange',()=>{if(!document.hidden){if(token&&Date.now()>=deadline)clearToken();refresh();}});
  if(!clientId)say('Google client ID is missing from this build. Local review remains available.');
  refresh();
- return{setEvents(approved:ApprovedEvent[]){events=structuredClone(approved);invalidate();refresh();if(events.length)void preparation.prepare().catch(error=>say(errorText(error)));}};
+ return{setEvents(approved:ApprovedEvent[],options:{partial?:boolean}={}){partialSource=!!options.partial;if(partialSource)removals.checked=false;events=structuredClone(approved);invalidate();refresh();if(events.length)void preparation.prepare().catch(error=>say(errorText(error)));}};
 }

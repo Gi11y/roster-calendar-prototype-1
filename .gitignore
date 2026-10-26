@@ -4,3 +4,6 @@ dist/
 .env.local
 .DS_Store
 public/ocr-assets/
+
+# Private local screenshots and OCR fixture data
+tests/local-fixtures/

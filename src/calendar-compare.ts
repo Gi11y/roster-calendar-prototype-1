@@ -4,11 +4,12 @@ import {validDate,addDays} from './date-review.ts';
 import {OWNER_MARKER,type ApprovedEvent} from './approved-events.ts';
 import type {CalendarReadApi} from './calendar-selection';
 export interface RemoteEvent {id:string;etag?:string;status?:string;summary?:string;description?:string;start?:{dateTime?:string;date?:string;timeZone?:string};end?:{dateTime?:string;date?:string;timeZone?:string};reminders?:{useDefault?:boolean;overrides?:{method:string;minutes:number}[]};extendedProperties?:{private?:Record<string,string>};recurrence?:string[];recurringEventId?:string;attendees?:unknown[];locked?:boolean;eventType?:string}
-export interface Coverage {start:string;end:string;confirmed:boolean}
+export interface Coverage {start:string;end:string;confirmed:boolean;partial?:boolean}
 export type ChangeKind='new'|'changed'|'unchanged'|'restore'|'removed'|'conflict';
 export interface Comparison {kind:ChangeKind;id:string;before?:RemoteEvent;after?:ApprovedEvent;reason:string}
 export function isStatus(error:unknown,status:number):boolean{return typeof error==='object'&&error!==null&&'status'in error&&error.status===status;}
 export function coverageBounds(coverage:Coverage):{timeMin:string;timeMax:string}{
+ if(coverage.partial)throw Error('Partial screenshots cannot be used to remove missing shifts.');
  if(!coverage.confirmed||!validDate(coverage.start)||!validDate(coverage.end)||coverage.end<coverage.start)throw Error('Confirm the full roster coverage dates before previewing removals.');
  const first=DateTime.fromISO(coverage.start,{zone:'Australia/Sydney'}),last=DateTime.fromISO(addDays(coverage.end,1),{zone:'Australia/Sydney'});
  if(last.diff(first,'days').days>93)throw Error('Use a roster coverage period of at most 93 days.');
