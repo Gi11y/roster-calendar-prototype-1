@@ -110,7 +110,7 @@ export async function applyCalendarChanges(api:CalendarReadApi,calendarId:string
   }catch(error){
    // A lost response can still mean a write succeeded. A fresh comparison resolves it safely.
    const previous=items.findIndex(x=>x.id===change.id);if(previous>=0)items.splice(previous,1);
-   items.push({id:change.id,kind:'failed',detail:message(error)+(attempted?' This shift may already be saved; check the calendar again before retrying.':' No write was sent for this shift.')});
+   items.push({id:change.id,kind:'failed',detail:message(error)+(attempted?' The request to save this shift may have reached Google; check the calendar again before retrying.':' No write was sent for this shift.')});
    for(const rest of operations.slice(index+1))items.push({id:rest.id,kind:'not-attempted',detail:'Stopped after the earlier issue. Check the calendar again.'});
    return{items,complete:false};
   }
