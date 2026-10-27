@@ -1,9 +1,9 @@
 import{detectCards,findGrid,findPartialGrid,green,hue,type Card,type Grid,type Rect}from'./card-data.ts';
 export type SpecialKind='ANNUAL'|'LWOP'|'COURSE';
 export function specialKind(text:string):SpecialKind|undefined{
- const first=text.trim().toUpperCase().split(/\r?\n/).slice(0,2).join(' ').replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
+ const first=text.trim().toUpperCase().replace(/LW0P/g,'LWOP').split(/\r?\n/).slice(0,2).join(' ').replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
  if(/^ANNUAL(?: LEAVE)?(?:\s|$)/.test(first))return'ANNUAL';
- if(/^LWOP(?:\s|$)/.test(first)||/^LEAVE WITHOUT PAY(?:\s|$)/.test(first))return'LWOP';
+ if(first.replace(/\s/g,'')==='LWOP'||/^LWOP(?:\s|$)/.test(first)||/^LEAVE WITHOUT PAY(?:\s|$)/.test(first))return'LWOP';
  if(/^COURSES?(?:\s|$)/.test(first))return'COURSE';
 }
 export function isLeave(label:string|undefined){return label==='ANNUAL'||label==='LWOP';}

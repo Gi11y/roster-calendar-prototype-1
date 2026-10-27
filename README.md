@@ -69,7 +69,7 @@ See [the fixture guide](tests/fixtures/README.md) for local-only screenshot prep
 
 Annual leave and LWOP use date-only all-day Calendar events. The final day shown in the review is included; the API end date is the following day, as required by [Google's Events reference](https://developers.google.com/workspace/calendar/api/v3/reference/events). A visible leave bar spanning weekday columns becomes one review entry for that range. Separate weekly bars remain separate entries.
 
-Courses are distinct from the Educator staff role. Only the printed time range or user-entered times are used; work-shift default hours are never substituted for Courses. The reader accepts the full Courses/Course label, Annual/Annual leave and LWOP/Leave without pay. Other codes remain excluded; unread candidates produce a notice and keep removals disabled.
+Courses are distinct from the Educator staff role. Only the printed time range or user-entered times are used; work-shift default hours are never substituted for Courses. The reader accepts the full Courses/Course label, Annual/Annual leave and LWOP/Leave without pay. Known unsupported codes remain excluded; unread candidate labels stay visible for correction or explicit omission, and keep removals disabled.
 
 The landing and review pages offer Add leave or a course as a manual fallback. Manual-only or partial imports keep other calendar entries. All entries still require date/time review and explicit Save. All-day entries use the same deterministic ID, account/calendar checks, comparison, conditional saves and recovery safeguards. Complete-period removal checks require the entire leave range inside the confirmed period. The Change a shift page continues to show work shifts only.
 
