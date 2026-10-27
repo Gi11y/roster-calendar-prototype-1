@@ -7,7 +7,7 @@ export function calendarStage(connected:boolean,verified:boolean,hasComparison:b
 export function comparisonCounts(changes:Comparison[]){const count=(kind:Comparison['kind'])=>changes.filter(x=>x.kind===kind).length;return{new:count('new'),changed:count('changed'),unchanged:count('unchanged'),removed:count('removed'),restore:count('restore'),conflict:count('conflict')};}
 export function calendarTime(event:RemoteEvent|undefined):{date:string;hours:string}{
  if(!event)return{date:'',hours:''};
- if(event.start?.date){const d=DateTime.fromISO(event.start.date,{zone:'Australia/Sydney'});return{date:d.isValid?d.toFormat('ccc d LLL'):'Date needs review',hours:'All day'};}
+ if(event.start?.date){const d=DateTime.fromISO(event.start.date,{zone:'Australia/Sydney'}),last=DateTime.fromISO(event.end?.date||'',{zone:'Australia/Sydney'}).minus({days:1});return{date:d.isValid?d.toFormat('ccc d LLL')+(last.isValid&&last.toISODate()!==d.toISODate()?' – '+last.toFormat('ccc d LLL'):''):'Date needs review',hours:'All day'};}
  const start=DateTime.fromISO(event.start?.dateTime||'',{setZone:true}).setZone('Australia/Sydney'),end=DateTime.fromISO(event.end?.dateTime||'',{setZone:true}).setZone('Australia/Sydney');
  if(!start.isValid||!end.isValid)return{date:'Date needs review',hours:'Check times'};
  return{date:start.toFormat('ccc d LLL'),hours:start.toFormat('HH:mm')+'–'+end.toFormat('HH:mm')+(end.toISODate()!==start.toISODate()?' · next day':'')};

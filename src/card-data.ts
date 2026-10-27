@@ -1,6 +1,6 @@
 export type Colour='light'|'dark'|'uncertain';
 export interface Rect {x:number;y:number;width:number;height:number}
-export interface Card extends Rect {id:number;rgb:[number,number,number];hue:number;colour:Colour;coverage:number}
+export interface Card extends Rect {id:number;rgb:[number,number,number];hue:number;colour:Colour;coverage:number;nonShiftCandidate?:boolean;spanDays?:number;sourceRect?:Rect}
 export interface Grid {columns:number[];rows:number[];partial?:boolean;startWeekday?:number}
 export function hue(r:number,g:number,b:number):number {const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;if(!d)return 0;let h=max===r?(g-b)/d:max===g?(b-r)/d+2:(r-g)/d+4;return(h*60+360)%360;}
 export function green(r:number,g:number,b:number):boolean{return g>65&&g>r*1.08&&g>b*1.2&&g-Math.min(r,b)>35;}
@@ -95,7 +95,9 @@ export function explicitRange(text:string):TimeRange|undefined{
  const unique=[...new Map(found.map(r=>[r.start+'|'+r.end,r])).values()];return unique.length===1?unique[0]:undefined;
 }
 export function proposal(label:string|undefined,colour:Colour,text:string):{range?:TimeRange;basis:string;warning?:string}{
+ if(label==='ANNUAL'||label==='LWOP')return{basis:'All-day entry'};
  const printed=explicitRange(text);if(printed)return{range:printed,basis:'Printed time range - verify against image'};
+ if(label==='COURSE')return{basis:'Needs review',warning:'Courses need printed start and end times. Check the screenshot and enter both times.'};
  if(/\d{1,2}[:.]\d{2}/.test(text))return{basis:'Needs review',warning:'Time text is present but incomplete, invalid or ambiguous. Defaults were not substituted.'};
  let start:number,duration:number;
  if(label==='N'){start=19*60;duration=720;}else if(label==='N10'){start=21*60+45;duration=600;}

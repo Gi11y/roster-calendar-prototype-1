@@ -221,6 +221,7 @@ prepareButton.addEventListener('click',async()=>{
   showPhase('calendar',true);
   const root=el('event-preview');root.replaceChildren();
   for(const item of prepared){
+   if(!item.range)continue;
    const article=document.createElement('article');article.className='shift-card';
    const heading=document.createElement('h3');heading.textContent=item.event.summary+' — '+dateDisplay(item.date)+' (card '+item.cardId+')';
    const local=document.createElement('p');local.textContent='Sydney: '+item.range.start+' → '+item.range.end;

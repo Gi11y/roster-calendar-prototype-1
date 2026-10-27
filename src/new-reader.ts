@@ -1,3 +1,4 @@
+import{detectRosterEntries,specialKind,isLeave,isSpecial,entryName}from'./roster-entries';
 import{rotatedSize,drawOriented,normaliseTextCanvas,type Rotation}from'./image-preparation';
 import{checkRosterCrop}from'./crop-check';
 import{dateHeadingArea,dateHeadingBands,dayNumberArea,recoverHeaderMonthYear}from'./date-heading';
@@ -16,7 +17,7 @@ import {prepareEvents,type ReviewedShift} from './approved-events';
 import {detectCards,findGrid,findPartialGrid,dayCell,labelFromText,proposal,explicitRange,type Card,type Grid,type Colour,type Rect} from './card-data';
 import {parseTsv} from './ocr-data';
 import {inferDateAnchor,weekdayBand,headerMonths} from './auto-dates';
-import {associateDates,validDate,validClock,reviewTiming,sortReview,type DateAnchor,type AssignedDate} from './date-review';
+import {associateDates,validDate,addDays,validClock,reviewTiming,sortReview,type DateAnchor,type AssignedDate} from './date-review';
 import {shiftTextOnly,planTimeBand} from './card-content';
 import {isolateLabel,chooseLabel,pGlyphEvidence,pGlyphCheck,type LabelReading} from './experimental-label-data';
 interface Worker {recognize(image:HTMLCanvasElement,options:object,output:object):Promise<{data:{text:string;tsv:string}}> ;setParameters(options:object):Promise<unknown>;terminate():Promise<unknown>}
@@ -35,7 +36,7 @@ let rotation:Rotation=0,sourceGrid:Grid|undefined,sourceWeekdays:Rect|undefined,
 const originalSize=()=>rotatedSize(originalImage!.naturalWidth,originalImage!.naturalHeight,rotation);
 let originalImage:HTMLImageElement|undefined,cropRect:Rect|undefined,autoRect:Rect|undefined,sourceCards:Rect[]=[];
 let source:HTMLCanvasElement|undefined,cards:Card[]=[],grid:Grid|undefined,busy=false,generation=0,worker:Worker|undefined;
-interface Result {card:Card;label?:string;confidence?:number;text:string;day?:string;dayText?:string;dayConfidence?:number;error?:string;labelPreview?:HTMLCanvasElement;labelNote?:string;timeText?:string;timeReason?:string;timeWarning?:string;timePreview?:HTMLCanvasElement;manualDate?:string;manualStart?:string;manualEnd?:string;manualNextDay?:boolean;reviewed?:boolean}
+interface Result {manualEntry?:boolean;ignored?:boolean;manualEndDate?:string;card:Card;label?:string;confidence?:number;text:string;day?:string;dayText?:string;dayConfidence?:number;error?:string;labelPreview?:HTMLCanvasElement;labelNote?:string;timeText?:string;timeReason?:string;timeWarning?:string;timePreview?:HTMLCanvasElement;manualDate?:string;manualStart?:string;manualEnd?:string;manualNextDay?:boolean;reviewed?:boolean}
 type Phase='start'|'crop'|'reading'|'review'|'calendar';
 let phase:Phase='start';const editingCards=new Set<number>();
 function showPhase(next:Phase,focus=false){phase=next;for(const [id,value] of [['start-screen','start'],['crop-screen','crop'],['reading-screen','reading'],['date-review','review'],['calendar-screen','calendar']])el(id).hidden=next!==value;el('advanced-tools').hidden=!DEBUG||next==='start'||next==='crop'||next==='reading';if(focus)document.querySelector<HTMLElement>('#'+(next==='crop'?'crop-screen':next==='review'?'date-review':'calendar-screen')+' h1')?.focus({preventScroll:false});}
@@ -49,7 +50,7 @@ const prepareButton=el<HTMLButtonElement>('prepare-events'),reminderInput=el<HTM
 function invalidatePreview(){calendarReview.setEvents([]);previewRevision++;el('event-preview').replaceChildren();el('event-preview-status').textContent='Review every detected card to prepare the event preview. Nothing is sent to Google.';prepareButton.disabled=true;}
 reminderInput.addEventListener('change',()=>renderDateReview());
 function controls(){for(const id of ['crop-rotate-left','crop-rotate-right'])el<HTMLButtonElement>(id).disabled=busy||!originalImage;retryDates.disabled=busy||!results.length||!header.value.trim();anchorSelect.disabled=busy;anchorDate.disabled=busy;weekOrder.disabled=busy;applyAnchor.disabled=busy||!results.length||!validDate(anchorDate.value)||!!grid?.partial&&!Number.isInteger(grid.startWeekday);file.disabled=busy;detect.disabled=busy||!source;read.disabled=busy||!cards.length;}
-function clear(){rotation=0;sourceGrid=undefined;sourceWeekdays=undefined;manualPartial=false;importPartial=false;headingBounds=undefined;headingReadings=[];if(originalImage)originalImage.src='';originalImage=undefined;cropRect=undefined;autoRect=undefined;sourceCards=[];const preview=document.getElementById('crop-preview') as HTMLCanvasElement|null;if(preview)preview.width=preview.height=1;showPhase('start');editingCards.clear();flowMessage('');invalidatePreview();anchorSource=undefined;dateExplanation='Read the cards to detect dates automatically.';el('auto-date-status').textContent=dateExplanation;anchorControls.open=false;dateAnchor=undefined;anchorDate.value='';weekOrder.checked=false;anchorSelect.replaceChildren();el('date-results').replaceChildren();el('review-count').textContent='';el('date-anchor-status').textContent='No date anchor confirmed.';generation++;void worker?.terminate();worker=undefined;if(source){source.width=1;source.height=1;}source=undefined;cards=[];results=[];grid=undefined;view.width=view.height=1;list.replaceChildren();header.value='';el('card-count').textContent='';el('grid-status').textContent='No grid detected yet.';busy=false;progress.value=0;file.value='';controls();}
+function clear(){el('omitted-entries').textContent='';rotation=0;sourceGrid=undefined;sourceWeekdays=undefined;manualPartial=false;importPartial=false;headingBounds=undefined;headingReadings=[];if(originalImage)originalImage.src='';originalImage=undefined;cropRect=undefined;autoRect=undefined;sourceCards=[];const preview=document.getElementById('crop-preview') as HTMLCanvasElement|null;if(preview)preview.width=preview.height=1;showPhase('start');editingCards.clear();flowMessage('');invalidatePreview();anchorSource=undefined;dateExplanation='Read the cards to detect dates automatically.';el('auto-date-status').textContent=dateExplanation;anchorControls.open=false;dateAnchor=undefined;anchorDate.value='';weekOrder.checked=false;anchorSelect.replaceChildren();el('date-results').replaceChildren();el('review-count').textContent='';el('date-anchor-status').textContent='No date anchor confirmed.';generation++;void worker?.terminate();worker=undefined;if(source){source.width=1;source.height=1;}source=undefined;cards=[];results=[];grid=undefined;view.width=view.height=1;list.replaceChildren();header.value='';el('card-count').textContent='';el('grid-status').textContent='No grid detected yet.';busy=false;progress.value=0;file.value='';controls();}
 el('clear-cards').addEventListener('click',()=>{clear();status.textContent='Image, crops and results cleared.';});window.addEventListener('pagehide',clear);
 function engine():Promise<Engine>{if(window.Tesseract)return Promise.resolve(window.Tesseract);return script??=new Promise<Engine>((resolve,reject)=>{const s=document.createElement('script');s.src=root+'tesseract.min.js';s.onload=()=>window.Tesseract?resolve(window.Tesseract):reject(Error('OCR API missing'));s.onerror=()=>{script=undefined;reject(Error('Could not load OCR files. Check offline readiness.'));};document.head.append(s);});}
 const cropPreview=el<HTMLCanvasElement>('crop-preview');
@@ -130,10 +131,10 @@ file.addEventListener('change',async()=>{const selected=file.files?.[0];clear();
 function draw(){if(!source)return;view.width=source.width;view.height=source.height;const ctx=view.getContext('2d')!;ctx.drawImage(source,0,0);
  if(grid){ctx.strokeStyle='#146b9d';ctx.lineWidth=1;for(const x of grid.columns){ctx.beginPath();ctx.moveTo(x,Math.min(...cards.map(c=>c.y))-40);ctx.lineTo(x,Math.max(...grid.rows,...cards.map(c=>c.y+c.height))+3);ctx.stroke();}for(const y of grid.rows){ctx.beginPath();ctx.moveTo(grid.columns[0],y);ctx.lineTo(grid.columns[grid.columns.length-1],y);ctx.stroke();}}
  ctx.strokeStyle='#ee7300';ctx.lineWidth=3;ctx.font='bold 16px system-ui';for(const card of cards){ctx.strokeRect(card.x,card.y,card.width,card.height);ctx.fillStyle='#fff';ctx.fillRect(card.x,card.y,25,20);ctx.fillStyle='#000';ctx.fillText(String(card.id),card.x+3,card.y+16);}}
-function scan(){if(!source)return;const pixels=source.getContext('2d',{willReadFrequently:true})!.getImageData(0,0,source.width,source.height);cards=detectCards(pixels.data,source.width,source.height);grid=findGrid(pixels.data,source.width,source.height,cards)??findPartialGrid(pixels.data,source.width,source.height,cards);if(grid?.partial)importPartial=true;results=cards.map(card=>({card,text:''}));draw();render();header.value='';
+function scan(){if(!source)return;const pixels=source.getContext('2d',{willReadFrequently:true})!.getImageData(0,0,source.width,source.height);({cards,grid}=detectRosterEntries(pixels.data,source.width,source.height));if(grid?.partial)importPartial=true;results=cards.map(card=>({card,text:''}));draw();render();header.value='';
  el('grid-status').textContent=grid?'Possible seven-column grid found. Check blue lines before trusting column/day evidence.':'Grid borders were not clear enough. Cards can still be inspected; date assignment stays unconfirmed.';
- el('card-count').textContent=cards.length+' green card(s) found. Separate cards on one day remain separate.';
- status.textContent=cards.length?'Cards detected. Check outlines, then read each card.':'No green cards found. Try a clearer or more tightly zoomed screenshot. No shifts were invented.';controls();}
+ el('card-count').textContent=cards.length+' roster card(s) found. Separate cards on one day remain separate.';
+ status.textContent=cards.length?'Cards detected. Check outlines, then read each card.':'No roster cards found. Try a clearer or more tightly zoomed screenshot. No shifts were invented.';controls();}
 detect.addEventListener('click',scan);
 function crop(x:number,y:number,width:number,height:number,mode='original',scale=3):HTMLCanvasElement{
  const c=document.createElement('canvas'),left=Math.max(0,Math.floor(x)),top=Math.max(0,Math.floor(y)),w=Math.max(1,Math.min(source!.width-left,width)),h=Math.max(1,Math.min(source!.height-top,height));c.width=Math.round(w*scale);c.height=Math.round(h*scale);
@@ -155,12 +156,12 @@ function labelFrames(card:Card):{normal:HTMLCanvasElement;binary:HTMLCanvasEleme
 
 function render(){list.replaceChildren();for(const result of results){
  const card=result.card,section=document.createElement('article');section.className='shift-card';section.id='source-card-'+card.id;const title=document.createElement('h3');title.textContent='Card '+card.id;section.append(title);
- const thumb=crop(card.x-2,card.y-2,card.width+4,card.height+4,'original',2);thumb.className='card-thumb';section.append(thumb);
+ if(source&&!result.manualEntry){const thumb=crop(card.x-2,card.y-2,card.width+4,card.height+4,'original',2);thumb.className='card-thumb';section.append(thumb);}
  const evidence=document.createElement('p');evidence.className='small';const cell=dayCell(card,grid);evidence.textContent='Original RGB '+card.rgb.join(', ')+'; hue '+card.hue+'°. '+(cell?'Grid column '+(cell.column+1)+(result.day?'; day OCR '+result.day+' (unverified)':' ; day unread/unconfirmed'):'Date grid unconfirmed')+'. No month/year assigned.';section.append(evidence);
  const colourLabel=document.createElement('label');colourLabel.textContent='Colour category ';const colour=document.createElement('select');colour.setAttribute('aria-label','Colour for card '+card.id);
  for(const [value,name] of [['uncertain','Uncertain - review'],['light','Light green: Educator shift'],['dark','Darker green: floor staff']]){const option=document.createElement('option');option.value=value;option.textContent=name;colour.append(option);}colour.value=card.colour;colour.disabled=busy;colourLabel.append(colour);section.append(colourLabel);
  const labelLabel=document.createElement('label');labelLabel.textContent='Shift label ';const label=document.createElement('select');label.setAttribute('aria-label','Shift label for card '+card.id);
- for(const value of ['', 'A','P','N','N10']){const option=document.createElement('option');option.value=value;option.textContent=value||'Unread / uncertain';label.append(option);}label.value=result.label||'';label.disabled=busy;labelLabel.append(label);section.append(labelLabel);
+ for(const value of ['', 'A','P','N','N10','ANNUAL','LWOP','COURSE']){const option=document.createElement('option');option.value=value;option.textContent=value||'Unread / uncertain';label.append(option);}label.value=result.label||'';label.disabled=busy;labelLabel.append(label);section.append(labelLabel);
  if(result.labelPreview){const caption=document.createElement('p');caption.textContent='Enlarged label crop used for OCR:';section.append(caption);result.labelPreview.className='card-label-preview';result.labelPreview.setAttribute('aria-label','Enlarged top-left label for card '+card.id);section.append(result.labelPreview);}
  const labelNote=document.createElement('p');labelNote.textContent=result.labelNote||'';section.append(labelNote);
  const note=document.createElement('p');if(result.confidence!==undefined)note.textContent='Label reading score: '+result.confidence.toFixed(1)+' (not a probability or guarantee).';section.append(note);
@@ -171,8 +172,27 @@ function render(){list.replaceChildren();for(const result of results){
 read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;const readerStart=performance.now();headingBounds=undefined;headingReadings=[];showPhase('reading');flowMessage('');const job=++generation;busy=true;for(const r of results){r.reviewed=false;r.error=undefined;r.timeWarning=undefined;}controls();render();progress.value=0;status.textContent='Loading the on-device card reader...';let current:Worker|undefined;
  try{const lib=await engine();if(job!==generation)return;current=await lib.createWorker('eng',1,{workerPath:root+'worker.min.js',corePath:root,langPath:root.replace(/\/$/,''),workerBlobURL:false,cacheMethod:'none',gzip:true});if(job!==generation){await current.terminate();return;}worker=current;
  const active=results.slice(0,40);
+ const readDay=async(result:Result,c:Card)=>{ const bounds=dayNumberArea(c,grid);if(bounds){await current!.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'0123456789'});const image=crop(bounds.x,bounds.y,bounds.width,bounds.height);try{const day=await current!.recognize(image,{},{text:true,tsv:true});if(job!==generation)return;const digits=day.data.text.trim(),words=parseTsv(day.data.tsv||'');result.dayText=digits;result.dayConfidence=words.length?Math.max(...words.map(w=>w.confidence)):0;if(/^(?:[1-9]|[12]\d|3[01])$/.test(digits)&&words.some(w=>w.confidence>=60))result.day=digits;
+ if(!result.day){const normalised=normaliseTextCanvas(image,72);try{
+  await current!.setParameters({tessedit_pageseg_mode:'8',tessedit_char_whitelist:'0123456789',user_defined_dpi:'300'});const retry=await current!.recognize(normalised,{},{text:true,tsv:true});if(job!==generation)return;const value=retry.data.text.trim(),tokens=parseTsv(retry.data.tsv||'');result.dayText=digits+' | normalised: '+value;result.dayConfidence=tokens.length?Math.max(...tokens.map(w=>w.confidence)):0;if(/^(?:[1-9]|[12]\d|3[01])$/.test(value)&&tokens.some(w=>w.confidence>=60))result.day=value;
+ }finally{normalised.width=normalised.height=1;}}
+ }finally{image.width=image.height=1;}}
+ };
+ const readSpecial=async(result:Result,c:Card,initial?:string)=>{
+  await current!.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:'',user_defined_dpi:'300'});
+  let text=initial;if(text===undefined){const image=crop(c.x-1,c.y-1,c.width+2,c.height+2,'original',4);try{text=(await current!.recognize(image,{},{text:true,tsv:false})).data.text;}finally{image.width=image.height=1;}}
+  if(job!==generation)return;let kind=specialKind(text);
+  if(!kind){const raw=crop(c.x-1,c.y-1,c.width+2,c.height+2,'original',2),normal=normaliseTextCanvas(raw,80);try{const retry=(await current!.recognize(normal,{},{text:true,tsv:false})).data.text;kind=specialKind(retry);text+='\n'+retry;}finally{raw.width=raw.height=normal.width=normal.height=1;}}
+  result.text=text;result.label=kind;
+  if(!kind){result.ignored=true;if(!/^\s*(FACS|RDO|ADO|STUDY)\b/i.test(text))importPartial=true;return;}
+  if(kind==='COURSE'){
+   const raw=crop(c.x-1,c.y-1,c.width+2,c.height+2,'original',4),normal=normaliseTextCanvas(raw,120);try{const retry=(await current!.recognize(normal,{},{text:true,tsv:false})).data.text,agreement=agreeFocusedTimes([text,retry]);if(agreement.range)result.timeText=agreement.range.start+' - '+agreement.range.end;else result.timeWarning='Check the printed Courses hours and enter both times.';result.text+='\nCourses confirmation:\n'+retry;}finally{raw.width=raw.height=normal.width=normal.height=1;}
+  }
+  await readDay(result,c);
+ };
  for(let index=0;index<active.length;index++){if(job!==generation)return;const result=active[index],c=result.card;status.textContent='Reading card '+(index+1)+' of '+active.length+'...';progress.value=index/active.length;
  try{
+ if(c.nonShiftCandidate){await readSpecial(result,c);if(job!==generation)return;render();continue;}
  const readings:LabelReading[]=[];const frames=labelFrames(c);
  if(frames){
   result.labelPreview=frames.binary;if(frames.shape)readings.push(frames.shape);
@@ -184,6 +204,7 @@ read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;c
  }
  await current.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:'',preserve_interword_spaces:'1'});
  const full=await current.recognize(crop(c.x-2,c.y-2,c.width+4,c.height+4),{},{text:true,tsv:true});if(job!==generation)return;result.text=full.data.text;result.timeText=shiftTextOnly(full.data.text);
+ if(specialKind(full.data.text)){await readSpecial(result,c,full.data.text);if(job!==generation)return;render();continue;}
  let fullWords=parseTsv(full.data.tsv||'');readings.push({label:labelFromText(full.data.text),confidence:fullWords[0]?.confidence||0,source:'full card',rawText:full.data.text.trim().split(String.fromCharCode(10))[0],detail:!labelFromText(full.data.text)?'First line did not match a valid label':'Full-card candidate'});
  let decision=chooseLabel(readings);
  if(!decision.label&&frames){
@@ -255,11 +276,7 @@ result.label=decision.label;result.confidence=decision.confidence;result.labelNo
   }else result.timeReason+=' No text ink was found in that gap; metadata was not read as time.';
  }
  result.text+='\nTime boundary: '+result.timeReason;
- const bounds=dayNumberArea(c,grid);if(bounds){await current.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'0123456789'});const image=crop(bounds.x,bounds.y,bounds.width,bounds.height);try{const day=await current.recognize(image,{},{text:true,tsv:true});if(job!==generation)return;const digits=day.data.text.trim(),words=parseTsv(day.data.tsv||'');result.dayText=digits;result.dayConfidence=words.length?Math.max(...words.map(w=>w.confidence)):0;if(/^(?:[1-9]|[12]\d|3[01])$/.test(digits)&&words.some(w=>w.confidence>=60))result.day=digits;
- if(!result.day){const normalised=normaliseTextCanvas(image,72);try{
-  await current.setParameters({tessedit_pageseg_mode:'8',tessedit_char_whitelist:'0123456789',user_defined_dpi:'300'});const retry=await current.recognize(normalised,{},{text:true,tsv:true});if(job!==generation)return;const value=retry.data.text.trim(),tokens=parseTsv(retry.data.tsv||'');result.dayText=digits+' | normalised: '+value;result.dayConfidence=tokens.length?Math.max(...tokens.map(w=>w.confidence)):0;if(/^(?:[1-9]|[12]\d|3[01])$/.test(value)&&tokens.some(w=>w.confidence>=60))result.day=value;
- }finally{normalised.width=normalised.height=1;}}
- }finally{image.width=image.height=1;}}
+ await readDay(result,c);if(job!==generation)return;
  }catch(e){result.error=String(e);}render();
  }
  if(grid&&job===generation){
@@ -289,7 +306,7 @@ result.label=decision.label;result.confidence=decision.confidence;result.labelNo
   if(job!==generation)return;header.value=recovery.text;
   headingReadings.push(...recovery.readings.map((reading,index)=>'Focused heading '+(index+1)+' '+JSON.stringify(reading.band)+':\n'+(reading.text??reading.error??'(empty)')));
  }
- if(job===generation)applyAutomaticDates(false);
+ if(job===generation){const omitted=results.filter(r=>r.ignored).length;results=results.filter(r=>!r.ignored);el('omitted-entries').textContent=omitted?'Other or unread codes were not added. Check your screenshot and add any missing leave or Courses below.':'';applyAutomaticDates(false);}
  if(job===generation){progress.value=1;status.textContent='Finished reading '+active.length+' card(s). Review colour, label, printed times and date evidence. No calendar events created.'+(results.length>40?' Only the first 40 cards were read to limit memory/time.':'');}
  }catch(e){if(job===generation){status.textContent='Card OCR failed: '+String(e);dateExplanation='Date reading did not finish on this device.';}}
  finally{if(current)await current.terminate().catch(()=>{});if(job===generation){worker=undefined;busy=false;controls();render();el('reader-metric').textContent='Newer reader · '+((performance.now()-readerStart)/1000).toFixed(1)+' seconds';showPhase('review',true);}}
@@ -297,12 +314,12 @@ result.label=decision.label;result.confidence=decision.confidence;result.labelNo
 
 function syncAnchorOptions(){
  const value=anchorSelect.value;anchorSelect.replaceChildren();
- for(const result of results){const option=document.createElement('option');option.value=String(result.card.id);const cell=dayCell(result.card,grid);option.textContent='Shift '+result.card.id+' · '+(result.label==='P'?'Afternoon':result.label==='N'||result.label==='N10'?'Night':result.label==='A'?'Morning':'Check type')+(result.day?' · day '+result.day:'');anchorSelect.append(option);}
+ for(const result of results.filter(r=>!r.manualEntry)){const option=document.createElement('option');option.value=String(result.card.id);const cell=dayCell(result.card,grid);option.textContent='Shift '+result.card.id+' · '+(entryName(result.label)||(result.label==='P'?'Afternoon':result.label==='N'||result.label==='N10'?'Night':result.label==='A'?'Morning':'Check type'))+(result.day?' · day '+result.day:'');anchorSelect.append(option);}
  if(results.some(r=>String(r.card.id)===value))anchorSelect.value=value;
  showAnchorPreview();
 }
 function showAnchorPreview(){
- const canvas=el<HTMLCanvasElement>('anchor-shift-preview'),selected=results.find(r=>String(r.card.id)===anchorSelect.value);canvas.hidden=!source||!selected;
+ const canvas=el<HTMLCanvasElement>('anchor-shift-preview'),selected=results.find(r=>!r.manualEntry&&String(r.card.id)===anchorSelect.value);canvas.hidden=!source||!selected;
  if(!source||!selected)return;
  const c=selected.card,cell=dayCell(c,grid),top=cell?.top??c.y;
  const frame=crop(c.x-3,top,c.width+6,c.y+c.height+3-top,'original',2);canvas.width=frame.width;canvas.height=frame.height;canvas.getContext('2d')!.drawImage(frame,0,0);frame.width=frame.height=1;
@@ -322,10 +339,11 @@ function reviewState(result:Result,assigned:AssignedDate|undefined){
  const p=proposal(result.label,result.card.colour,result.timeText??shiftTextOnly(result.text));
  const unresolved=result.timeWarning&&!(validClock(result.manualStart)&&validClock(result.manualEnd));
  const start=result.manualStart??(unresolved?undefined:p.range?.start),end=result.manualEnd??(unresolved?undefined:p.range?.end),nextDay=result.manualNextDay??p.range?.nextDay??false;
- const timing=reviewTiming(assigned?.date,start,end,nextDay);
- const zoned=sydneyRange(assigned?.date,start,end,nextDay);
- const error=(unresolved?result.timeWarning:undefined)||timing.error||zoned.error||(!result.label?'Choose the shift type in Edit shift.':result.card.colour==='uncertain'?'Choose the staff role in Edit shift.':result.error?'We could not read this card clearly. Check its details.':undefined);
- return{p,start,end,nextDay,timing,zoned,error};
+ const allDay=isLeave(result.label),special=isSpecial(result.label);let through:string|undefined;try{through=result.manualEndDate??(validDate(assigned?.date)?addDays(assigned.date,(result.card.spanDays??1)-1):undefined);}catch{}
+ const timing=allDay?{endDate:through,error:!validDate(assigned?.date)||!validDate(through)||through<assigned!.date!?'Confirm the leave start and end dates.':(Date.parse(through)-Date.parse(assigned!.date!))/86400000>=93?'Use a leave period of at most 93 days.':undefined}:reviewTiming(assigned?.date,start,end,nextDay);
+ const zoned=allDay?{range:undefined,error:undefined}:sydneyRange(assigned?.date,start,end,nextDay);
+ const error=(!allDay&&unresolved?result.timeWarning:undefined)||timing.error||zoned.error||(result.label==='COURSE'&&(result.card.spanDays??1)>1?'Enter Courses as separate dated entries.':!result.label?'Choose the entry type in Edit.':!special&&result.card.colour==='uncertain'?'Choose the staff role in Edit shift.':result.error?'We could not read this card clearly. Check its details.':undefined);
+ return{p,start,end,nextDay,timing,zoned,error,allDay,through};
 }
 el('tick-all-shifts').addEventListener('click',()=>{
  if(busy||!results.length)return;
@@ -345,9 +363,9 @@ function renderDateReview(){
  const line=document.createElement('div');line.className='shift-line';
  const copy=document.createElement('div');copy.className='shift-copy';
  const top=document.createElement('div');top.className='shift-top';
- const heading=document.createElement('h3');heading.className='shift-date';heading.textContent=assignment.date?new Intl.DateTimeFormat('en-AU',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'}).format(new Date(assignment.date+'T00:00:00Z')):'Date needed';
- const hours=document.createElement('span');hours.className='shift-hours';hours.textContent=state.start&&state.end?state.start+'–'+state.end:'Check times';top.append(heading,hours);copy.append(top);
- const role=document.createElement('p');role.className='shift-role';const name=result.label==='A'?'Morning':result.label==='P'?'Afternoon':result.label==='N'||result.label==='N10'?'Night':'Shift type needed';role.textContent=name+' · '+(result.card.colour==='light'?'Educator':result.card.colour==='dark'?'Floor staff':'Role needed');copy.append(role);
+ const heading=document.createElement('h3');heading.className='shift-date';heading.textContent=assignment.date?new Intl.DateTimeFormat('en-AU',{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'}).format(new Date(assignment.date+'T00:00:00Z')):'Date needed';if(state.allDay&&validDate(assignment.date)&&validDate(state.through)&&state.through!==assignment.date)heading.textContent+=' – '+new Intl.DateTimeFormat('en-AU',{day:'numeric',month:'short',timeZone:'UTC'}).format(new Date(state.through+'T00:00:00Z'));
+ const hours=document.createElement('span');hours.className='shift-hours';hours.textContent=state.allDay?'All day':state.start&&state.end?state.start+'–'+state.end:'Check times';top.append(heading,hours);copy.append(top);
+ const role=document.createElement('p');role.className='shift-role';const name=result.label==='A'?'Morning':result.label==='P'?'Afternoon':result.label==='N'||result.label==='N10'?'Night':'Shift type needed';role.textContent=entryName(result.label)||name+' · '+(result.card.colour==='light'?'Educator':result.card.colour==='dark'?'Floor staff':'Role needed');copy.append(role);
  if(!result.reviewed&&!result.timeWarning&&state.p.range&&result.manualStart===undefined&&result.manualEnd===undefined&&state.p.basis.startsWith('Inferred')){const basis=document.createElement('p');basis.className='shift-overnight';basis.textContent='Default hours · check against screenshot';copy.append(basis);}
  if(state.nextDay){const overnight=document.createElement('p');overnight.className='shift-overnight';overnight.textContent=assignment.date&&state.start&&state.end?shiftFinish(assignment.date,state.start,state.end,true).text:'Ends next day';copy.append(overnight);}
  const checkLabel=document.createElement('label');checkLabel.className='round-confirm';const check=document.createElement('input');check.type='checkbox';check.checked=!!result.reviewed&&!state.error;check.disabled=busy||!!state.error;check.setAttribute('aria-label','Reviewed card '+entry.cardId);const mark=document.createElement('span');mark.className='checkmark';mark.setAttribute('aria-hidden','true');checkLabel.append(check,mark);
@@ -359,24 +377,26 @@ function renderDateReview(){
  const editor=document.createElement('div');editor.className='shift-editor';editor.id='shift-editor-'+entry.cardId;editor.hidden=!editingCards.has(entry.cardId);
  toggle.addEventListener('click',()=>{if(editingCards.has(entry.cardId))editingCards.delete(entry.cardId);else editingCards.add(entry.cardId);editor.hidden=!editingCards.has(entry.cardId);toggle.setAttribute('aria-expanded',String(!editor.hidden));});
  const sourceLabel=document.createElement('p');sourceLabel.className='small';sourceLabel.textContent='Original card '+entry.cardId+' · Check the date against your full screenshot.';editor.append(sourceLabel);
- if(source){const c=result.card,thumb=crop(c.x-2,c.y-2,c.width+4,c.height+4,'original',2);thumb.className='card-thumb';thumb.setAttribute('aria-label','Original shift card '+entry.cardId);editor.append(thumb);}
+ if(source&&!result.manualEntry){const c=result.card,thumb=crop(c.x-2,c.y-2,c.width+4,c.height+4,'original',2);thumb.className='card-thumb';thumb.setAttribute('aria-label','Original shift card '+entry.cardId);editor.append(thumb);}
  const fields=document.createElement('div');fields.className='date-fields';
  const field=(labelText:string,input:HTMLElement)=>{const label=document.createElement('label');label.textContent=labelText;label.append(input);fields.append(label);};
- const date=document.createElement('input');date.type='date';date.value=assignment.date||'';date.disabled=busy;date.setAttribute('aria-label','Date for card '+entry.cardId);field('Shift date ',date);
+ const date=document.createElement('input');date.type='date';date.value=assignment.date||'';date.disabled=busy;date.setAttribute('aria-label','Date for card '+entry.cardId);field(state.allDay?'First day ':'Date ',date);
+ if(state.allDay){const through=document.createElement('input');through.type='date';through.value=state.through||'';through.disabled=busy;through.setAttribute('aria-label','Last day for card '+entry.cardId);field('Last day (included) ',through);through.addEventListener('change',()=>{result.manualEndDate=through.value;result.reviewed=false;renderDateReview();});}
  date.addEventListener('change',()=>{result.manualDate=date.value;result.reviewed=false;renderDateReview();});
  const type=document.createElement('select');type.setAttribute('aria-label','Type for shift '+entry.cardId);type.disabled=busy;
- for(const [value,text] of [['','Choose type'],['A','A · Morning'],['P','P · Afternoon'],['N','N · Night'],['N10','N10 · Night']]){const option=document.createElement('option');option.value=value;option.textContent=text;type.append(option);}type.value=result.label||'';field('Shift type ',type);
+ for(const [value,text] of [['','Choose type'],['A','A · Morning'],['P','P · Afternoon'],['N','N · Night'],['N10','N10 · Night'],['ANNUAL','Annual leave'],['LWOP','LWOP'],['COURSE','Courses']]){const option=document.createElement('option');option.value=value;option.textContent=text;type.append(option);}type.value=result.label||'';field('Shift type ',type);
  const staff=document.createElement('select');staff.setAttribute('aria-label','Role for shift '+entry.cardId);staff.disabled=busy;
- for(const [value,text] of [['uncertain','Choose role'],['light','Educator'],['dark','Floor staff']]){const option=document.createElement('option');option.value=value;option.textContent=text;staff.append(option);}staff.value=result.card.colour;field('Role ',staff);
- type.addEventListener('change',()=>{result.label=type.value||undefined;result.reviewed=false;render();});staff.addEventListener('change',()=>{result.card.colour=staff.value as Colour;result.reviewed=false;render();});
- const startInput=document.createElement('input');startInput.type='time';startInput.value=state.start||'';startInput.disabled=busy;startInput.setAttribute('aria-label','Start for card '+entry.cardId);field('Start ',startInput);
- const endInput=document.createElement('input');endInput.type='time';endInput.value=state.end||'';endInput.disabled=busy;endInput.setAttribute('aria-label','End for card '+entry.cardId);field('End ',endInput);
+ for(const [value,text] of [['uncertain','Choose role'],['light','Educator'],['dark','Floor staff']]){const option=document.createElement('option');option.value=value;option.textContent=text;staff.append(option);}staff.value=result.card.colour;field('Role ',staff);staff.parentElement!.hidden=isSpecial(result.label);
+ type.addEventListener('change',()=>{result.label=type.value||undefined;result.timeWarning=undefined;result.manualStart=undefined;result.manualEnd=undefined;result.manualNextDay=undefined;result.reviewed=false;render();});staff.addEventListener('change',()=>{result.card.colour=staff.value as Colour;result.reviewed=false;render();});
+ const startInput=document.createElement('input');startInput.type='time';startInput.value=state.start||'';startInput.disabled=busy;startInput.setAttribute('aria-label','Start for card '+entry.cardId);field('Start ',startInput);startInput.parentElement!.hidden=state.allDay;
+ const endInput=document.createElement('input');endInput.type='time';endInput.value=state.end||'';endInput.disabled=busy;endInput.setAttribute('aria-label','End for card '+entry.cardId);field('End ',endInput);endInput.parentElement!.hidden=state.allDay;
  const changedTime=()=>{result.manualStart=startInput.value;result.manualEnd=endInput.value;if(validClock(startInput.value)&&validClock(endInput.value)&&startInput.value!==endInput.value)result.manualNextDay=endInput.value<startInput.value;result.reviewed=false;renderDateReview();};
  startInput.addEventListener('change',changedTime);endInput.addEventListener('change',changedTime);
- const overnightLabel=document.createElement('label'),overnight=document.createElement('input');overnight.type='checkbox';overnight.checked=state.nextDay;overnight.disabled=busy;overnight.setAttribute('aria-label','Ends next day for card '+entry.cardId);overnightLabel.append(overnight,document.createTextNode(' Ends next day'));fields.append(overnightLabel);
+ const overnightLabel=document.createElement('label'),overnight=document.createElement('input');overnight.type='checkbox';overnight.checked=state.nextDay;overnight.disabled=busy;overnight.setAttribute('aria-label','Ends next day for card '+entry.cardId);overnightLabel.append(overnight,document.createTextNode(' Ends next day'));fields.append(overnightLabel);overnightLabel.hidden=state.allDay;
  overnight.addEventListener('change',()=>{result.manualNextDay=overnight.checked;result.reviewed=false;renderDateReview();});editor.append(fields);
  const evidence=document.createElement('p');evidence.className='small';evidence.textContent=DEBUG?assignment.basis+(assignment.warning?'. '+assignment.warning:'')+'. '+(result.manualStart!==undefined||result.manualEnd!==undefined?'Times manually edited.':state.p.basis)+'. All times Australia/Sydney.':'Check the date and hours against your roster. Sydney time.';editor.append(evidence);
  if(assignment.candidate){const use=document.createElement('button');use.textContent='Use proposed '+assignment.candidate;use.disabled=busy;use.addEventListener('click',()=>{result.manualDate=assignment.candidate;result.reviewed=false;renderDateReview();});editor.append(use);}
+ if(result.manualEntry){const remove=document.createElement('button');remove.className='text-button';remove.textContent='Remove from this review';remove.addEventListener('click',()=>{results=results.filter(r=>r!==result);render();});editor.append(remove);}
  article.append(editor);root.append(article);
  }
  prepareButton.disabled=busy||!results.length||reviewed!==results.length;reminderInput.disabled=busy;
@@ -385,7 +405,8 @@ function renderDateReview(){
  const needsCorrection=results.filter(result=>!!reviewState(result,map.get(result.card.id)).error).length;
  el<HTMLButtonElement>('tick-all-shifts').disabled=busy||!results.some(result=>!result.reviewed&&!reviewState(result,map.get(result.card.id)).error);
  el('tick-all-status').textContent=needsCorrection?needsCorrection+' '+(needsCorrection===1?'shift needs':'shifts need')+' correction before '+(needsCorrection===1?'it can':'they can')+' be ticked.':'';
- const dateIssue=dateReadingHelp(results.length-dated,results.length,dateExplanation);
+ const dateIssue=results.every(r=>r.manualEntry)?'':dateReadingHelp(results.length-dated,results.length,dateExplanation);
+ if(results.every(r=>r.manualEntry))anchorControls.open=false;
  el('date-reading-issue').textContent=dateIssue;el('date-reading-issue').hidden=!dateIssue;
  el('date-reading-details').hidden=!dateIssue;el<HTMLTextAreaElement>('date-heading-output').value=dateReadout();el('copy-date-heading-status').textContent='';
  el('partial-weekday-row').hidden=!grid?.partial;
@@ -407,7 +428,7 @@ prepareButton.addEventListener('click',async()=>{
   const shifts:ReviewedShift[]=results.map(result=>{
    const assigned=assignments.get(result.card.id),state=reviewState(result,assigned);
    if(state.error||!result.reviewed)throw Error('Check every card before preparing events.');
-   return{cardId:result.card.id,date:assigned!.date!,label:result.label!,role:result.card.colour==='light'?'Educator':'Floor staff',start:state.start!,end:state.end!,nextDay:state.nextDay,reviewed:true,order:result.card.y*100000+result.card.x};
+   return{cardId:result.card.id,date:assigned!.date!,label:result.label!,role:result.card.colour==='light'?'Educator':'Floor staff',start:state.start||'',end:state.end||'',nextDay:state.nextDay,endDate:state.allDay?state.through:undefined,reviewed:true,order:result.card.y*100000+result.card.x};
   });
   const prepared=await prepareEvents(shifts,reminderInput.value==='none'?null:Number(reminderInput.value));
   if(revision!==previewRevision)return;
@@ -417,9 +438,9 @@ prepareButton.addEventListener('click',async()=>{
   for(const item of prepared){
    const article=document.createElement('article');article.className='shift-card';
    const heading=document.createElement('h3');heading.textContent=item.event.summary+' — '+dateDisplay(item.date)+' (card '+item.cardId+')';
-   const local=document.createElement('p');local.textContent='Sydney: '+item.range.start+' → '+item.range.end;
-   const utc=document.createElement('p');utc.textContent='UTC: '+item.range.startUtc+' → '+item.range.endUtc;
-   const duration=document.createElement('p');duration.textContent=hoursText(item.range.elapsedMinutes)+' elapsed'+(item.range.changesOffset?' — daylight saving changes during this shift; '+hoursText(item.range.clockMinutes)+' between the printed clock times.':'.');
+   const local=document.createElement('p');local.textContent=item.range?'Sydney: '+item.range.start+' → '+item.range.end:'All day: '+item.event.start.date+' through '+addDays(item.event.end.date!,-1);
+   const utc=document.createElement('p');utc.textContent=item.range?'UTC: '+item.range.startUtc+' → '+item.range.endUtc:'';
+   const duration=document.createElement('p');duration.textContent=item.range?hoursText(item.range.elapsedMinutes)+' elapsed'+(item.range.changesOffset?' — daylight saving changes during this shift; '+hoursText(item.range.clockMinutes)+' between the printed clock times.':'.'):'All-day calendar entry.';
    const details=document.createElement('details'),summary=document.createElement('summary'),json=document.createElement('pre');summary.textContent='Exact event fields and duplicate-protection ID';json.textContent=JSON.stringify(item.event,null,2);details.append(summary,json);article.append(heading,local,utc,duration,details);root.append(article);
   }
   el('event-preview-status').textContent=prepared.length+' reviewed event(s) prepared locally. No calendar changes have been made. Any edit clears this preview. This is a list of detected shifts, not confirmation of a complete roster period for removals.';
@@ -450,5 +471,11 @@ async function offline(){const label=el('card-offline');if(!('serviceWorker'in n
  label.textContent=navigator.serviceWorker.controller&&cached.every(Boolean)?'OCR assets cached. Close all app windows and reopen after an update; test this page in airplane mode.':'Offline assets installing. Keep online, then close app windows and reopen.';
  }catch{label.textContent='Offline readiness not confirmed. Reconnect and check again.';}}
 el('card-offline-check').addEventListener('click',()=>void offline());navigator.serviceWorker?.addEventListener('controllerchange',()=>void offline());void offline();controls();showPhase('start');
+
+
+for(const button of Array.from(document.querySelectorAll<HTMLButtonElement>('[data-add-entry]')))button.addEventListener('click',()=>{
+ if(busy)return;const id=Math.max(0,...results.map(r=>r.card.id))+1;importPartial=true;
+ results.push({manualEntry:true,manualDate:'',label:'ANNUAL',text:'Added manually',card:{id,x:0,y:id,width:90,height:40,rgb:[180,180,150],hue:60,colour:'uncertain',coverage:1,spanDays:1}});editingCards.add(id);showPhase('review',true);render();
+});
 
 mountInstallHint();

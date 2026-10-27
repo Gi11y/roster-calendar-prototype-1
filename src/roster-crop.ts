@@ -1,3 +1,4 @@
+import{detectRosterEntries}from'./roster-entries.ts';
 import {detectCards,findGrid,findPartialGrid,type Rect,type Grid}from'./card-data.ts';
 import {weekdayBand}from'./auto-dates.ts';
 export interface RosterCrop {rect:Rect;automatic:boolean;reason:string;cards:Rect[];grid?:Grid;weekdays?:Rect}
@@ -27,7 +28,7 @@ export function cropFromGrid(width:number,height:number,cards:Rect[],grid:Grid|u
  return{rect,automatic:true,reason:'Roster grid found. Check that the date heading and every shift are visible.',cards};
 }
 export function proposeRosterCrop(data:Uint8ClampedArray,width:number,height:number):RosterCrop{
- const cards=detectCards(data,width,height),full=findGrid(data,width,height,cards),grid=full??findPartialGrid(data,width,height,cards);
+ const detected=detectRosterEntries(data,width,height),cards=detected.cards.map(c=>c.sourceRect??c),grid=detected.grid,full=grid?.partial?undefined:grid;
  const weekdays=grid&&cards.length?weekdayBand(data,width,height,grid.columns[0],grid.columns[grid.columns.length-1],Math.min(...cards.map(c=>c.y))):undefined;
  return{...cropFromGrid(width,height,cards,full,weekdays),grid,weekdays};
 }

@@ -17,14 +17,15 @@ export function coverageBounds(coverage:Coverage):{timeMin:string;timeMax:string
 }
 export function managed(event:RemoteEvent):boolean{return event.extendedProperties?.private?.rosterImporter===OWNER_MARKER;}
 function sameEvent(a:RemoteEvent,b:ApprovedEvent):boolean{
+ const sameTime=b.start.date!==undefined?!!a.start?.date&&!a.start.dateTime&&!a.end?.dateTime&&a.start.date===b.start.date&&a.end?.date===b.end.date:!a.start?.date&&!a.end?.date&&Date.parse(a.start?.dateTime||'')===Date.parse(b.start.dateTime||'')&&Date.parse(a.end?.dateTime||'')===Date.parse(b.end.dateTime||'');
  const overrides=(x:RemoteEvent['reminders'])=>JSON.stringify((x?.overrides||[]).slice().sort((a,b)=>a.minutes-b.minutes||a.method.localeCompare(b.method)));
- return a.summary===b.summary&&(a.description||'')===b.description&&Date.parse(a.start?.dateTime||'')===Date.parse(b.start.dateTime)&&Date.parse(a.end?.dateTime||'')===Date.parse(b.end.dateTime)&&a.reminders?.useDefault===false&&overrides(a.reminders)===overrides(b.reminders);
+ return a.summary===b.summary&&(a.description||'')===b.description&&sameTime&&a.reminders?.useDefault===false&&overrides(a.reminders)===overrides(b.reminders);
 }
 export function planComparison(approved:ApprovedEvent[],remote:RemoteEvent[],coverage?:Coverage):Comparison[]{
  if(!approved.length)throw Error('Prepare reviewed events first.');
  if(new Set(approved.map(x=>x.id)).size!==approved.length)throw Error('Duplicate approved event IDs.');
  if(new Set(remote.map(x=>x.id)).size!==remote.length)throw Error('Duplicate calendar event IDs in comparison.');
- if(coverage){coverageBounds(coverage);if(approved.some(x=>x.extendedProperties.private.rosterDate<coverage.start||x.extendedProperties.private.rosterDate>coverage.end))throw Error('Every approved shift must be inside the confirmed coverage period.');}
+ if(coverage){coverageBounds(coverage);if(approved.some(x=>x.extendedProperties.private.rosterDate<coverage.start||x.extendedProperties.private.rosterDate>coverage.end||x.end.date&&addDays(x.end.date,-1)>coverage.end))throw Error('Every approved shift must be inside the confirmed coverage period.');}
  const existing=new Map(remote.map(x=>[x.id,x])),desired=new Set(approved.map(x=>x.id));
  const output:Comparison[]=approved.map(after=>{
   const before=existing.get(after.id);
@@ -36,10 +37,10 @@ export function planComparison(approved:ApprovedEvent[],remote:RemoteEvent[],cov
  if(coverage)for(const before of remote){
   if(desired.has(before.id)||before.status==='cancelled'||!managed(before))continue;
   const original=before.extendedProperties!.private!.rosterDate;
-  const actual=DateTime.fromISO(before.start?.dateTime||'',{setZone:true}).setZone('Australia/Sydney').toISODate();
+  const actual=validDate(before.start?.date)?before.start.date:DateTime.fromISO(before.start?.dateTime||'',{setZone:true}).setZone('Australia/Sydney').toISODate();
   // Require both the stored roster date and actual Sydney start inside coverage.
   // Events moved across the boundary or missing metadata are never removal candidates.
-  if(!validDate(original)||!actual||original<coverage.start||original>coverage.end||actual<coverage.start||actual>coverage.end)continue;
+  if(!validDate(original)||!actual||original<coverage.start||original>coverage.end||actual<coverage.start||actual>coverage.end||before.end?.date&&(!validDate(before.end.date)||addDays(before.end.date,-1)>coverage.end))continue;
   const protectedEvent=!!before.recurrence||!!before.recurringEventId||!!before.attendees?.length||!!before.locked||!!(before.eventType&&before.eventType!=='default');
   output.push({kind:protectedEvent?'conflict':'removed',id:before.id,before,reason:protectedEvent?'A managed event now has recurrence or guests; manual review is required.':'Managed event is absent from the approved roster inside the complete period you confirmed.'});
  }

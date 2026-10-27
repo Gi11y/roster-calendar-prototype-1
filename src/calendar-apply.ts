@@ -1,3 +1,4 @@
+import{isLeave}from'./roster-entries.ts';
 import type {CalendarProgress} from './calendar-progress';
 import {OWNER_MARKER,stableEventId,type ApprovedEvent} from './approved-events.ts';
 import {isStatus,planComparison,coverageBounds,type Coverage,type Comparison,type RemoteEvent} from './calendar-compare.ts';
@@ -27,8 +28,10 @@ function message(error:unknown):string{
 }
 async function validateAfter(event:ApprovedEvent,id:string){
  const p=event.extendedProperties?.private,ordinal=Number(p?.rosterOrdinal);
- if(event.id!==id||!p||p.rosterImporter!==OWNER_MARKER||!validDate(p.rosterDate)||!['A','P','N','N10'].includes(p.rosterType)||!Number.isSafeInteger(ordinal)||ordinal<0||String(ordinal)!==p.rosterOrdinal||await stableEventId(p.rosterDate,p.rosterType,ordinal)!==id)throw Error('The approved event identity is invalid. Review shifts again.');
- if(event.start?.timeZone!=='Australia/Sydney'||event.end?.timeZone!=='Australia/Sydney'||!Number.isFinite(Date.parse(event.start.dateTime))||!Number.isFinite(Date.parse(event.end.dateTime))||Date.parse(event.end.dateTime)<=Date.parse(event.start.dateTime)||event.reminders?.useDefault!==false)throw Error('The approved event fields are invalid. Review shifts again.');
+ if(event.id!==id||!p||p.rosterImporter!==OWNER_MARKER||!validDate(p.rosterDate)||!['A','P','N','N10','ANNUAL','LWOP','COURSE'].includes(p.rosterType)||!Number.isSafeInteger(ordinal)||ordinal<0||String(ordinal)!==p.rosterOrdinal||await stableEventId(p.rosterDate,p.rosterType,ordinal)!==id)throw Error('The approved event identity is invalid. Review shifts again.');
+ const allDay=isLeave(p.rosterType);
+ const validFields=allDay?event.start?.date===p.rosterDate&&validDate(event.end?.date)&&event.end.date>p.rosterDate&&!event.start.dateTime&&!event.end.dateTime&&!event.start.timeZone&&!event.end.timeZone&&(Date.parse(event.end.date)-Date.parse(p.rosterDate))/86400000<=93:event.start?.date===undefined&&event.end?.date===undefined&&event.start?.timeZone==='Australia/Sydney'&&event.end?.timeZone==='Australia/Sydney'&&Number.isFinite(Date.parse(event.start.dateTime||''))&&Number.isFinite(Date.parse(event.end.dateTime||''))&&Date.parse(event.end.dateTime||'')>Date.parse(event.start.dateTime||'');
+ if(!validFields||event.reminders?.useDefault!==false)throw Error('The approved event fields are invalid. Review shifts again.');
 }
 function fields(after:ApprovedEvent,before?:RemoteEvent){
  return{summary:after.summary,description:after.description,start:after.start,end:after.end,reminders:{useDefault:false,overrides:after.reminders.overrides||[]},extendedProperties:{private:{...before?.extendedProperties?.private,...after.extendedProperties.private}}};
@@ -71,7 +74,7 @@ export async function applyCalendarChanges(api:CalendarReadApi,calendarId:string
  }
  async function checkRemovalIdentity(event:RemoteEvent){
   const p=event.extendedProperties?.private,ordinal=Number(p?.rosterOrdinal);
-  if(!p||p.rosterImporter!==OWNER_MARKER||!validDate(p.rosterDate)||!['A','P','N','N10'].includes(p.rosterType)||!Number.isSafeInteger(ordinal)||ordinal<0||String(ordinal)!==p.rosterOrdinal||await stableEventId(p.rosterDate,p.rosterType,ordinal)!==event.id)throw Error('Removal target has an invalid importer identity. No removal was made.');
+  if(!p||p.rosterImporter!==OWNER_MARKER||!validDate(p.rosterDate)||!['A','P','N','N10','ANNUAL','LWOP','COURSE'].includes(p.rosterType)||!Number.isSafeInteger(ordinal)||ordinal<0||String(ordinal)!==p.rosterOrdinal||await stableEventId(p.rosterDate,p.rosterType,ordinal)!==event.id)throw Error('Removal target has an invalid importer identity. No removal was made.');
  }
  let validated=0;
  for(const change of operations){const fresh=await fetchEvent(change.id);if(change.kind==='removed'){if(!change.before)throw Error('Removal has no reviewed event.');await checkRemovalIdentity(change.before);if(fresh&&fresh.status!=='cancelled')await checkRemovalIdentity(fresh);}check(change,fresh);assertCurrent();onProgress({phase:'validating',completed:++validated,total:operations.length});}
