@@ -182,10 +182,11 @@ read.addEventListener('click',async()=>{if(busy||!source||!cards.length)return;c
   await current!.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:'',user_defined_dpi:'300'});
   let text=initial;if(text===undefined){const image=crop(c.x-1,c.y-1,c.width+2,c.height+2,'original',4);try{text=(await current!.recognize(image,{},{text:true,tsv:false})).data.text;}finally{image.width=image.height=1;}}
   if(job!==generation)return;let kind=specialKind(text);
-  if(!kind){const raw=crop(c.x-1,c.y-1,c.width+2,c.height+2,'original',2),normal=normaliseTextCanvas(raw,80);try{const retry=(await current!.recognize(normal,{},{text:true,tsv:false})).data.text;kind=specialKind(retry);text+='\n'+retry;}finally{raw.width=raw.height=normal.width=normal.height=1;}}
+  if(!kind){const raw=crop(c.x+1,c.y+1,c.width-2,Math.min(c.height*.65,25*Math.max(.65,c.width/90)),'original',4),context=raw.getContext('2d')!,pixels=context.getImageData(0,0,raw.width,raw.height);pixels.data.set(timeInk(pixels.data,c.rgb));context.putImageData(pixels,0,0);const normal=normaliseTextCanvas(raw,64);try{await current!.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ',user_defined_dpi:'300'});const retry=(await current!.recognize(normal,{},{text:true,tsv:false})).data.text;kind=specialKind(retry);text+='\nFocused entry label: '+retry;}finally{raw.width=raw.height=normal.width=normal.height=1;}}
   result.text=text;result.label=kind;
   if(!kind){if(/^\s*(FACS|RDO|ADO|STUDY)\b/i.test(text))result.ignored=true;else{result.labelNote='Unclear entry label: choose its type or leave it out of this review.';importPartial=true;}return;}
   if(kind==='COURSE'){
+   await current!.setParameters({tessedit_pageseg_mode:'6',tessedit_char_whitelist:'',user_defined_dpi:'300'});
    const raw=crop(c.x-1,c.y-1,c.width+2,c.height+2,'original',4),context=raw.getContext('2d')!,pixels=context.getImageData(0,0,raw.width,raw.height);pixels.data.set(timeInk(pixels.data,c.rgb));context.putImageData(pixels,0,0);const normal=normaliseTextCanvas(raw,120);try{const retry=(await current!.recognize(normal,{},{text:true,tsv:false})).data.text,agreement=agreeFocusedTimes([text,retry]);if(agreement.range)result.timeText=agreement.range.start+' - '+agreement.range.end;else result.timeWarning='Check the printed Courses hours and enter both times.';result.text+='\nCourses confirmation:\n'+retry;}finally{raw.width=raw.height=normal.width=normal.height=1;}
   }
   await readDay(result,c);
