@@ -376,7 +376,7 @@ function renderDateReview(){
  if(state.zoned.range?.changesOffset){const dst=document.createElement('p');dst.className='dst-note';dst.textContent='Clocks change during this shift: '+hoursText(state.zoned.range.elapsedMinutes)+' elapsed.';article.append(dst);}
  const editor=document.createElement('div');editor.className='shift-editor';editor.id='shift-editor-'+entry.cardId;editor.hidden=!editingCards.has(entry.cardId);
  toggle.addEventListener('click',()=>{if(editingCards.has(entry.cardId))editingCards.delete(entry.cardId);else editingCards.add(entry.cardId);editor.hidden=!editingCards.has(entry.cardId);toggle.setAttribute('aria-expanded',String(!editor.hidden));});
- const sourceLabel=document.createElement('p');sourceLabel.className='small';sourceLabel.textContent='Original card '+entry.cardId+' · Check the date against your full screenshot.';editor.append(sourceLabel);
+ const sourceLabel=document.createElement('p');sourceLabel.className='small';sourceLabel.textContent=result.manualEntry?'Added manually · Check the dates against your roster.':'Original card '+entry.cardId+' · Check the date against your full screenshot.';editor.append(sourceLabel);
  if(source&&!result.manualEntry){const c=result.card,thumb=crop(c.x-2,c.y-2,c.width+4,c.height+4,'original',2);thumb.className='card-thumb';thumb.setAttribute('aria-label','Original shift card '+entry.cardId);editor.append(thumb);}
  const fields=document.createElement('div');fields.className='date-fields';
  const field=(labelText:string,input:HTMLElement)=>{const label=document.createElement('label');label.textContent=labelText;label.append(input);fields.append(label);};
@@ -399,6 +399,7 @@ function renderDateReview(){
  if(result.manualEntry||result.card.nonShiftCandidate){const remove=document.createElement('button');remove.className='text-button';remove.textContent=result.manualEntry?'Remove from this review':'Leave this entry out';remove.addEventListener('click',()=>{importPartial=true;results=results.filter(r=>r!==result);render();});editor.append(remove);}
  article.append(editor);root.append(article);
  }
+ el('adjust-roster-crop').hidden=!originalImage;el('change-screenshot').textContent=originalImage?'Choose another screenshot':'Choose screenshot';anchorControls.hidden=results.every(r=>r.manualEntry);
  prepareButton.disabled=busy||!results.length||reviewed!==results.length;reminderInput.disabled=busy;
  el('review-count').textContent=reviewed+' of '+results.length+' confirmed';
  prepareButton.textContent=reviewed===results.length&&results.length?'Review calendar changes':'Confirm remaining '+(results.length-reviewed===1?'shift':'shifts');
@@ -414,7 +415,7 @@ function renderDateReview(){
  for(const option of Array.from(firstWeekday.options))option.disabled=!!option.value&&!!grid&&Number(option.value)+grid.columns.length-1>7;
  el('week-order-label').textContent=grid?.partial?'The visible weekday columns run in this order':'Columns run Monday to Sunday';
  if(dateIssue&&!dateAnchor&&!busy)anchorControls.open=true;
- const datedDates=assignments.flatMap(a=>a.date?[a.date]:[]).sort();
+ const datedDates=assignments.flatMap(a=>{if(!a.date)return[];const result=results.find(r=>r.card.id===a.cardId),end=result&&reviewState(result,a).through;return isLeave(result?.label)&&validDate(end)?[a.date,end]:[a.date];}).sort();
  el('roster-date-range').textContent=datedDates.length?dateDisplay(datedDates[0])+(datedDates[0]!==datedDates[datedDates.length-1]?' – '+dateDisplay(datedDates[datedDates.length-1]):'')+(dated<results.length?' · '+(results.length-dated)+' need a date':''):results.length+' '+(results.length===1?'shift':'shifts')+' to check';
  el('auto-date-status').textContent=anchorSource==='auto'&&dateAnchor?dateExplanation+' Anchor: card '+dateAnchor.cardId+' = '+dateDisplay(dateAnchor.date)+'.'+(datedDates.length?' Review range: '+dateDisplay(datedDates[0])+' to '+dateDisplay(datedDates[datedDates.length-1])+'.':'')+' Use Change date anchor if this looks wrong.':anchorSource==='manual'?'Using your manual date anchor. Individual corrections remain available.':dateExplanation;
  el('date-anchor-status').textContent=dateAnchor?'Dates are based on shift '+dateAnchor.cardId+' ('+dateDisplay(dateAnchor.date)+'). Check the remaining shifts against your screenshot. Dates you edited individually are kept.':'Choose a shift and enter its exact date from your screenshot. You can also edit dates individually below.';
