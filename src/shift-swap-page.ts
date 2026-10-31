@@ -1,3 +1,4 @@
+import{bindStandardShiftHours}from'./manual-shift-defaults';
 import{DEBUG,mountInstallHint}from'./coworker-ui';
 import{inferredNextDay,shiftFinish}from'./manual-shift-time';
 import{swapRangeError,shiftSearchResult}from'./shift-search-feedback';
@@ -16,6 +17,7 @@ const progress={...progressView,start(value:CalendarProgress){progressView.start
 let token:string|undefined,deadline=0,timer:ReturnType<typeof setTimeout>|undefined,epoch=0,revision=0,busy=false,calendarId:string|undefined,savedId:string|undefined,shifts:RemoteEvent[]=[],choices:CalendarChoice[]=[],plan:SwapPlan|ExtraShiftPlan|undefined,recovery:ApplyOptions['recovery'],probePending:{calendarId:string;id:string}|undefined;
 const mode=el<HTMLSelectElement>('change-action');
 const fields=['swap-date','swap-type','swap-role','swap-start','swap-end','swap-next','swap-reminder']as const;
+const fillStandardHours=bindStandardShiftHours(el<HTMLSelectElement>('swap-type'),el<HTMLInputElement>('swap-start'),el<HTMLInputElement>('swap-end'),el<HTMLInputElement>('swap-next'),()=>{invalidate();refresh();});
 const say=(value:string)=>el('swap-status').textContent=value,errorText=(e:unknown)=>e instanceof Error?e.message:String(e);
 function invalidate(){revision++;plan=undefined;el('swap-preview').hidden=true;el('swap-result').textContent='';retry.hidden=true;confirm.disabled=true;confirm.hidden=false;}
 const preparation=createSignInPreparation(loadGoogleScript,()=>refresh());
@@ -101,11 +103,11 @@ old.addEventListener('change',()=>{
  if(selected){const when=calendarTime(selected);el('swap-old-detail').textContent=when.date+' · '+when.hours+' · '+selected.summary;
   el<HTMLInputElement>('swap-date').value=selected.extendedProperties!.private!.rosterDate;el<HTMLSelectElement>('swap-type').value=selected.extendedProperties!.private!.rosterType;
   el<HTMLSelectElement>('swap-role').value=selected.summary?.startsWith('Educator')?'Educator':selected.summary?.startsWith('Floor staff')?'Floor staff':'';
-  el<HTMLInputElement>('swap-start').value='';el<HTMLInputElement>('swap-end').value='';el<HTMLInputElement>('swap-next').checked=false;
+  fillStandardHours();
  }refresh();
 });
 for(const field of [from,to])field.addEventListener('change',()=>{resetShifts();refresh();});
-for(const id of fields)el(id).addEventListener('input',()=>{if(id==='swap-start'||id==='swap-end'){const next=inferredNextDay(el<HTMLInputElement>('swap-start').value,el<HTMLInputElement>('swap-end').value);if(next!==undefined)el<HTMLInputElement>('swap-next').checked=next;}invalidate();refresh();});
+for(const id of fields.filter(id=>id!=='swap-type'))el(id).addEventListener('input',()=>{if(id==='swap-start'||id==='swap-end'){const next=inferredNextDay(el<HTMLInputElement>('swap-start').value,el<HTMLInputElement>('swap-end').value);if(next!==undefined)el<HTMLInputElement>('swap-next').checked=next;}invalidate();refresh();});
 mode.addEventListener('change',()=>{invalidate();if(mode.value==='add'){old.value='';for(const id of ['swap-date','swap-start','swap-end','swap-type','swap-role'])el<HTMLInputElement|HTMLSelectElement>(id).value='';el<HTMLInputElement>('swap-next').checked=false;}refresh();});
 replace.addEventListener('change',()=>{invalidate();refresh();});
 function line(root:HTMLElement,label:string,event:RemoteEvent){root.replaceChildren();const heading=document.createElement('h3'),copy=document.createElement('p'),when=calendarTime(event);heading.textContent=label;copy.textContent=when.date+' · '+when.hours+' · '+event.summary;root.append(heading,copy);}
