@@ -74,9 +74,16 @@ for(const file of ['manifest.webmanifest','roster-cream-v1.webmanifest']){
  handlers.fetch({request:{method:'GET',url:root+file,mode:'cors'},respondWith(p){response=p;}});
  assert.equal(await(await response).text(),'cached');
 }
-for(const file of ['index.html','cards.html','change.html','swap.html','privacy.html','install.html']){
+for(const file of ['index.html','cards.html','change.html','swap.html','privacy.html','install.html','how-to.html']){
  const page=readFileSync('dist/'+file,'utf8');assert(page.includes('roster-cream-v1.webmanifest'));assert(page.includes('icons/icon-a-180.png'));
 }
 assert.deepEqual(JSON.parse(readFileSync('dist/roster-cream-v1.webmanifest','utf8')),manifest);
 assert(manifest.icons.every(icon=>icon.src.includes('icon-a-')));
 console.log('PASS: installation uses selected cream icon and fresh metadata online, with offline fallback.');
+
+assert(stored.includes(root+'how-to.html'));
+online=false;response=undefined;
+handlers.fetch({request:{method:'GET',url:root+'how-to.html',mode:'navigate'},respondWith(p){response=p;}});
+assert.equal(await(await response).text(),'cached');
+for(const file of ['index.html','cards.html','change.html','swap.html','privacy.html','install.html'])assert(readFileSync('dist/'+file,'utf8').includes(base+'how-to.html'));
+console.log('PASS: the guide and its app links are included, and the guide opens offline.');

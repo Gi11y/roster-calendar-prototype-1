@@ -1,0 +1,96 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f0dfd9"><meta name="apple-mobile-web-app-capable" content="yes"><link rel="manifest" href="%BASE_URL%roster-cream-v1.webmanifest"><link rel="icon" type="image/png" href="%BASE_URL%icons/icon-a-192.png"><link rel="apple-touch-icon" href="%BASE_URL%icons/icon-a-180.png"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client; connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com; frame-src https://accounts.google.com; worker-src 'self'; img-src 'self' blob: data:; style-src 'self' https://accounts.google.com/gsi/style; object-src 'none'; base-uri 'self'; form-action 'none'"><meta name="description" content="Learn how to turn a roster screenshot into reviewed Google Calendar shifts, set reminders, add leave and Courses, and change a shift."><title>How to use Roster</title></head><body class="cards-app help-app"><main id="help-main">
+<header class="app-brand"><span>Roster</span><span class="version">v0.28</span></header>
+<a class="text-button" href="%BASE_URL%">‹ Open Roster</a>
+<h1>How to use Roster</h1><p class="intro">From your roster screenshot to Google Calendar, with a chance to check everything before saving.</p>
+<p class="help-return">Already reviewing a roster? Return to your original Roster app or tab to continue it.</p>
+<nav class="help-nav" aria-label="Guide topics"><a href="#first-roster">First roster</a><a href="#shift-types">Shifts &amp; examples</a><a href="#change-shift">Change a shift</a><a href="#fix-a-problem">Fix a problem</a></nav>
+<section id="first-roster" class="ivory-sheet help-card"><h2>Your first roster</h2>
+<ol class="help-steps">
+<li><strong>Take a screenshot of your latest roster.</strong><p>Keep the month, year, weekday headings, day numbers and complete shift cards visible. Use JPG, PNG or WebP.</p></li>
+<li><strong>Choose screenshot, then check the crop.</strong><p>The app suggests a crop. Use <b>Adjust crop</b>, <b>Use full image</b> or the rotate buttons if needed. Include the date heading and every shift you want. Tap <b>Read roster</b> and keep the page open while it reads on your phone.</p></li>
+<li><strong>Check the review list.</strong><p>Compare every date, shift type, role and time with your screenshot. Tap the arrow beside an entry to edit it. Tick each correct entry. <b>Tick all</b> is a shortcut after you have checked the whole list; confirming details without checking them can lead to wrong calendar entries.</p></li>
+<li><strong>Choose your reminders.</strong><p>The <b>Reminders</b> panel is above <b>Review calendar changes</b>. Choose no reminder, 30 minutes, 1 hour or 2 hours before. Then continue to the calendar preview.</p></li>
+<li><strong>Connect Google and choose your calendar.</strong><p>Use the personal Google account where you want your roster. Wait for the calendar names to load. If you already have a calendar created by Roster, select it. The app uses its own roster calendar, which can have a custom name.</p><p>First time? Enter a name, or keep <b>Roster</b>, and tap <b>Create my Roster calendar</b>. This creates an empty calendar. Your shifts are saved in the next step.</p></li>
+<li><strong>Check, review and save.</strong><p>Tap <b>Check calendar</b>. Look through the new or updated shifts and any entries needing attention. Tap an entry for details. When everything is right, tap <b>Save X Shifts</b>, where X is the number listed for saving, and wait for the result.</p><p>Connecting and checking do not save your shifts. Check the saved entries in the selected Google Calendar after the app confirms the result.</p></li>
+</ol><p class="help-note">Saved changes affect your Google Calendar. Arrange shift swaps and workplace approvals through your usual workplace process.</p>
+</section>
+<h2 class="help-more">Explore the guide</h2>
+<details id="shift-types" class="help-topic"><summary>Shift types, colours and examples</summary><div class="help-topic-body">
+<p><b>A</b> is morning, <b>P</b> is afternoon, <b>N</b> is night and <b>N10</b> is the shorter night shift. These are the standard hours used when there is no printed time range:</p>
+<table class="help-table"><caption>Standard work-shift hours</caption><thead><tr><th scope="col">Shift</th><th scope="col">Start</th><th scope="col">Finish</th></tr></thead><tbody>
+<tr data-default-shift="A"><th scope="row">A · Morning</th><td>07:00</td><td>15:00</td></tr>
+<tr data-default-shift="P"><th scope="row">P · Afternoon</th><td>13:30</td><td>21:30</td></tr>
+<tr data-default-shift="N"><th scope="row">N · Night</th><td>19:00</td><td>07:00 <small>next day</small></td></tr>
+<tr data-default-shift="N10"><th scope="row">N10 · Night</th><td>21:45</td><td>07:45 <small>next day</small></td></tr>
+</tbody></table>
+<p><b>Printed hours take priority.</b> An A tile showing 11:00–19:30 should use those hours, rather than 07:00–15:00. Enter the full start-to-finish period shown on the roster.</p>
+<p>For work shifts, lighter green identifies the <b>Educator</b> role and darker green identifies <b>Floor staff</b>. Colour alone does not set the shift length. Check the role if the screenshot colours are unclear.</p>
+<p>A tile labelled <b>Course</b> or <b>Courses</b> is an education-day entry. It uses its printed hours and has no default work-shift hours. An Educator work shift and a Courses entry are separate things.</p>
+<h3>Example review entries</h3><ul class="help-examples">
+<li><div><strong>Morning · Educator</strong><span>11:00–19:30</span></div><p>The printed hours on the A tile override the standard morning hours.</p></li>
+<li><div><strong>Night · Floor staff</strong><span>19:00–07:00 · next day</span></div><p>A Wednesday night shift finishes on Thursday morning. Check the finish-day message.</p></li>
+<li><div><strong>Courses</strong><span>08:00–16:30</span></div><p>These are example printed hours, not a default for all Courses entries.</p></li>
+<li><div><strong>Annual leave · Tue 10–Thu 12 Nov</strong><span>All day</span></div><p>The entry includes Tuesday, Wednesday and Thursday.</p></li>
+</ul><p class="small">The examples are illustrations, not your saved roster.</p>
+</div></details>
+<details id="dates-and-crops" class="help-topic"><summary>Cropping, unclear dates and partial screenshots</summary><div class="help-topic-body">
+<p>Use the clearest original screenshot you have. Avoid cutting through shift cards or removing the heading. Portrait and landscape images can be used; rotate only if the image is sideways.</p>
+<p>If a card is cut off, expand the crop or choose a wider screenshot. A crop through a detected card is blocked. You can leave whole cards outside the crop to import only the visible part.</p>
+<p>If you see <b>Date needed</b>, open <b>Set or change roster dates</b>. Choose one visible shift, enter its exact date from the screenshot and confirm the weekday column order. For a partial week, also choose the <b>first visible weekday</b>. Use the date for the selected shift, not simply the first date in the heading.</p>
+<p>Tap <b>Use this date for the roster</b>, then check every remaining date. You can edit individual dates beside each entry. A conflicting day number may still need an individual correction.</p>
+<p>Partial screenshots and manual-only imports keep other calendar entries. They cannot be used to remove missing shifts. Separate cards on the same date remain separate entries.</p>
+</div></details>
+<details id="leave-and-courses" class="help-topic"><summary>Annual leave, LWOP and Courses</summary><div class="help-topic-body">
+<p><b>Annual leave and LWOP are all-day entries.</b> A leave bar spanning several visible days becomes one entry for that period. Check the first and last day; the last day shown is included. Separate weekly bars remain separate entries.</p>
+<p><b>Courses use printed start and finish times.</b> If the hours cannot be read confidently, check the roster and enter both times before confirming.</p>
+<p>To add a missing entry without a screenshot, tap <b>Add leave or a course</b> on the landing page or below the review list. Choose the type and date. For leave, set the last day if it covers several days. For Courses, enter the hours. Then confirm the entry and follow the normal calendar review and save steps.</p>
+<p>An unread entry can stay in the list for correction. If it has a <b>Leave this entry out</b> button, use it only after checking what it represents. <b>Remove from this review</b> removes a manually added draft; it does not delete an existing Google Calendar event.</p>
+<p>RDOs, FACS and study-day labels are outside the automatic import list. Check the screenshot for anything missing from the review.</p>
+</div></details>
+<details id="reminders" class="help-topic"><summary>Choosing reminders</summary><div class="help-topic-body">
+<p>Before continuing from the review list, use the visible <b>Reminders</b> panel. The choices are <b>No reminder</b>, <b>30 minutes before</b>, <b>1 hour before</b> and <b>2 hours before</b>.</p>
+<p>Check this setting each time you save. A fresh app session starts with No reminder. The choice is saved with the entries in your review, including updates to existing entries. Choosing No reminder saves those entries without an alert.</p>
+<p>The Change a shift page has its own Reminder choice for the replacement or extra shift. Your phone and Google Calendar notification settings also affect whether an alert appears. See <a href="https://support.google.com/calendar/answer/37242?hl=en" target="_blank" rel="noopener">Google Calendar notification help</a> if alerts are missing.</p>
+</div></details>
+<details id="change-shift" class="help-topic"><summary>Replace, remove or add an extra shift</summary><div class="help-topic-body">
+<p>Open <b>Change a shift</b> from the landing page. This page works with A, P, N and N10 work shifts saved by this app. Leave and Courses entries are not listed here.</p>
+<ol><li>Choose <b>Replace a shift</b>, <b>Remove a shift</b> or <b>Add an extra shift</b>.</li><li>Connect Google and choose your Roster calendar.</li><li>For replacing or removing, enter a From/To period of at most 93 days and tap <b>Find shifts</b>. Choose the shift from the results. A no-shifts message means the search completed successfully.</li><li>For a replacement or extra shift, enter the date, shift type and role. Choosing the type fills its standard start and finish times. Both times remain editable. Check <b>Ends next day</b>, the finish-day message and the reminder.</li><li>Tap the review button and check the current shift and replacement, or the extra/removal shown. Then use <b>Save 1 Shift</b> or <b>Remove 1 Shift</b> to confirm.</li></ol>
+<p>For a replacement, the app saves and checks the new shift before removing the original. Nothing is sent to your workplace.</p>
+<p>After an agreed swap, use your latest roster for future imports. An old screenshot can propose the old hours again, so always read the comparison before saving.</p>
+</div></details>
+<details id="updated-rosters" class="help-topic"><summary>Importing an updated roster and avoiding duplicates</summary><div class="help-topic-body">
+<p>Choose the latest screenshot, review it and use the <b>same Roster calendar</b>. You do not need to create a new calendar for each import.</p>
+<ul><li><b>New:</b> an entry is ready to be added.</li><li><b>Update:</b> reviewed details, such as times or reminders, differ from the saved entry.</li><li><b>Unchanged / Already up to date:</b> the saved entry already matches; there may be nothing to save.</li><li><b>Needs review:</b> resolve the issue before saving.</li></ul>
+<p>Repeated imports into the same calendar are designed to reuse the same shifts. Entries created manually in Google Calendar or saved into a different calendar can still appear separately.</p>
+<h3>Removing shifts absent from a new roster</h3>
+<p>Removals are off by default. For a complete roster only, open <b>Options → Include removals</b>, enable the complete-period option and enter the first and last covered dates, including days off. Check the calendar again, review every listed removal and confirm the removal checkbox before saving.</p>
+<p>Only entries managed by this app and within the covered roster dates can be removal candidates. A leave period must fit wholly inside those dates. Partial/manual imports cannot enable removals. To remove one work shift, use Change a shift instead.</p>
+</div></details>
+<details id="google-connection" class="help-topic"><summary>Google accounts and your Roster calendar</summary><div class="help-topic-body">
+<p>Use the same personal Google account each time. After sign-in, keep the page open while the app gets the calendar names. Choose the app-created Roster calendar, even if you gave it a custom name.</p>
+<p>The app reads calendar names to help you choose. It changes entries only in the roster calendar created by this app; it does not read events from your other calendars.</p>
+<p>You may need to reconnect after reopening the app or when the connection expires. On the calendar preview, <b>Options</b> includes <b>Change Google account</b> and <b>Disconnect</b>.</p>
+<p>If you deleted the entire roster calendar, reconnect and choose an available app-created calendar or create a new one when offered. This does not restore the events from the deleted calendar.</p>
+<p>If Google says the app is being tested or access is blocked, contact the person who shared Roster with you so they can check account access.</p>
+</div></details>
+<details id="install-and-offline" class="help-topic"><summary>Home-screen installation, offline use and privacy</summary><div class="help-topic-body">
+<p>You can use Roster in the browser or add it to your home screen. Follow <a href="%BASE_URL%install.html">Install on your phone</a> for iPhone and Android instructions. If a link opens inside a messaging app, open it in Safari or Chrome to use the full browser.</p>
+<p>Open the app while online and let its files finish loading first. The cached screenshot reader can then work offline. Connecting Google, getting calendars, checking shifts and saving changes need the internet. This guide is included in the app’s offline files.</p>
+<p>Your screenshot and recognition stay on your device. Google receives the calendar details you choose to save. See <a href="%BASE_URL%privacy.html">Your privacy</a> for the full explanation.</p>
+<p><b>Keep unsaved work open.</b> The current screenshot and review are not saved as a draft. Closing or reloading the page can clear them; shifts already saved to Google Calendar stay there.</p>
+</div></details>
+<details id="fix-a-problem" class="help-topic"><summary>Fix a problem</summary><div class="help-topic-body">
+<h3>The date or time is wrong</h3><p>Open that entry’s arrow and correct it from the screenshot. Check the year and any next-day finish. For several unclear dates, use the date-anchor controls above the list and recheck all entries.</p>
+<h3>A shift, leave day or Course is missing</h3><p>Check the full screenshot against the list. Try a clearer image or adjust the crop without cutting cards. Add missing leave or Courses manually; use Change a shift → Add an extra shift for a missing work shift once your Roster calendar exists.</p>
+<h3>Reading is slow</h3><p>Reading happens on your phone, so larger images and different phones take different amounts of time. Watch the progress message and keep the page open. If necessary, use smaller screenshots that keep complete cards and their date headings.</p>
+<h3>The file cannot be opened</h3><p>Use JPG, PNG or WebP, under 20 MB and no more than 25 megapixels. Try the original screenshot instead of a heavily compressed copy.</p>
+<h3>No shifts are found when changing a shift</h3><p>Check the Google account, selected roster calendar and search dates. Only work shifts saved by this app are listed. A successful empty search has its own message.</p>
+<h3>Saving stops or the connection expires</h3><p>Read the result: some entries may already have saved. Reconnect if asked, then use Check calendar again before retrying. Avoid creating another calendar or adding extra copies while the result is uncertain.</p>
+<h3>A previously removed shift needs help to restore</h3><p>Contact the person who shared the app. Restoring a deleted shift may need extra help; repeatedly tapping Save will not resolve it.</p>
+<h3>Saved shifts are not visible</h3><p>Check Google Calendar using the same account and calendar you selected in Roster. Check the dates and whether that calendar is displayed. If the app did not confirm a successful save, return and check the calendar again.</p>
+<h3>The app looks out of date</h3><p>Finish any unsaved review first. Then go online, close the open Roster windows and reopen the <a href="%BASE_URL%">main app link</a>. Check the version at the top.</p>
+<p class="help-note">For more help, contact the person who shared Roster. Keep screenshots and private roster details out of public support posts.</p>
+</div></details>
+<p class="help-end"><a href="%BASE_URL%">Open Roster</a> · <a href="#help-main">Back to top</a></p>
+<footer class="app-footer"><p><a href="%BASE_URL%privacy.html">Privacy</a> · <a href="%BASE_URL%install.html">Install on your phone</a></p><p>Unofficial tool · Not endorsed by NSW Health</p></footer>
+</main><script type="module" src="/src/info-page.ts"></script></body></html>

@@ -142,3 +142,39 @@ html:not([data-debug]) [data-debug-only]{display:none!important}
 .cards-app .reminder-panel p{margin:10px 0 16px;font-size:14px;line-height:1.5}
 .cards-app .reminder-panel label{display:block;margin:0 0 8px;font-weight:600;font-size:14px}
 .cards-app .reminder-panel select{display:block;width:100%;min-height:48px;margin:0;background:#faf7f3;color:var(--ink);border:1px solid #aa978e;border-radius:10px;padding:12px;font:inherit}
+
+/* Coworker guide: readable on small screens, using native expandable topics. */
+.cards-app .help-entry-link{display:block;width:fit-content;margin:-10px 4px 22px;color:var(--cocoa);font-weight:650;text-underline-offset:4px}
+.cards-app .help-return{font-size:14px;color:var(--muted);margin:0 4px 20px}
+.cards-app .help-nav{display:flex;flex-wrap:wrap;gap:8px;margin:0 4px 24px}
+.cards-app .help-nav a{display:block;padding:10px 13px;border:1px solid #cbb7ac;border-radius:12px;color:var(--ink);text-decoration:none;background:#f7eee8;min-height:44px;box-sizing:border-box}
+.cards-app .help-nav a:hover{background:var(--ivory)}
+.cards-app .help-card{padding:24px;margin:0 0 28px;background:var(--ivory)}
+.cards-app .help-card h2{margin:0 0 18px;font-size:23px}
+.cards-app .help-steps{padding-left:24px;margin:0}
+.cards-app .help-steps>li{padding-left:5px;margin:0 0 22px}
+.cards-app .help-steps>li::marker{font-weight:700;color:var(--cocoa)}
+.cards-app .help-steps p{margin:8px 0 0}
+.cards-app .help-note{padding:14px 16px;border-left:3px solid #a8897a;background:#f2e6df;border-radius:0 10px 10px 0;font-size:14px;margin:20px 0 0}
+.cards-app .help-more{margin:0 4px 14px;font-size:22px}
+.cards-app .help-topic{background:var(--ivory);border:1px solid var(--line);border-radius:18px;margin:12px 0;overflow:hidden;scroll-margin-top:18px}
+.cards-app .help-topic>summary{padding:18px 20px;cursor:pointer;font-weight:650;line-height:1.4;min-height:48px;box-sizing:border-box}
+.cards-app .help-topic>summary::marker{color:var(--cocoa)}
+.cards-app .help-topic[open]>summary{border-bottom:1px solid var(--line)}
+.cards-app .help-topic-body{padding:0 20px 20px}
+.cards-app .help-topic-body p,.cards-app .help-topic-body li{line-height:1.65}
+.cards-app .help-topic-body li{margin:8px 0}
+.cards-app .help-topic-body h3{font-size:17px;margin:22px 0 8px}
+.cards-app .help-table{width:100%;border-collapse:collapse;font-size:14px;margin:20px 0}
+.cards-app .help-table caption{text-align:left;font-weight:650;margin-bottom:10px}
+.cards-app .help-table th,.cards-app .help-table td{padding:10px 6px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+.cards-app .help-table td{white-space:nowrap}
+.cards-app .help-table small{display:block;font-size:12px;color:var(--muted)}
+.cards-app .help-examples{list-style:none;margin:16px 0;padding:0;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.cards-app .help-examples li{margin:0;padding:16px;border-bottom:1px solid var(--line)}
+.cards-app .help-examples li:last-child{border:0}
+.cards-app .help-examples li>div{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.cards-app .help-examples span{color:var(--muted);font-size:14px}
+.cards-app .help-examples p{font-size:14px;margin:8px 0 0}
+.cards-app .help-end{margin:28px 4px;text-align:center}
+@media(max-width:420px){.cards-app .help-card{padding:22px 18px}.cards-app .help-topic>summary{padding:17px 16px}.cards-app .help-topic-body{padding:0 16px 18px}}
