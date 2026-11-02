@@ -87,3 +87,8 @@ handlers.fetch({request:{method:'GET',url:root+'how-to.html',mode:'navigate'},re
 assert.equal(await(await response).text(),'cached');
 for(const file of ['index.html','cards.html','change.html','swap.html','privacy.html','install.html'])assert(readFileSync('dist/'+file,'utf8').includes(base+'how-to.html'));
 console.log('PASS: the guide and its app links are included, and the guide opens offline.');
+
+const illustratedGuide=readFileSync('dist/how-to.html','utf8'),guideShots=[...illustratedGuide.matchAll(/<img src="([^"]*help\/screens\/[^"]+)"/g)].map(m=>m[1]);
+assert.equal(guideShots.length,8);
+for(const src of guideShots){const url=new URL(src,root).href;assert(stored.includes(url),url);response=undefined;online=false;handlers.fetch({request:{method:'GET',url,mode:'cors'},respondWith(p){response=p;}});assert.equal(await(await response).text(),'cached');}
+console.log('PASS: all eight annotated screenshots are bundled and available offline.');

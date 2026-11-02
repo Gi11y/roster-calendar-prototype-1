@@ -178,3 +178,13 @@ html:not([data-debug]) [data-debug-only]{display:none!important}
 .cards-app .help-examples p{font-size:14px;margin:8px 0 0}
 .cards-app .help-end{margin:28px 4px;text-align:center}
 @media(max-width:420px){.cards-app .help-card{padding:22px 18px}.cards-app .help-topic>summary{padding:17px 16px}.cards-app .help-topic-body{padding:0 16px 18px}}
+
+/* Annotated app captures in the guide. */
+.cards-app .help-screenshot{margin:18px 0 24px;padding:10px;border:1px solid var(--line);border-radius:16px;background:#fffaf6}
+.cards-app .help-screenshot>a{display:block;color:var(--cocoa);text-decoration:none}
+.cards-app .help-screenshot img{display:block;width:100%;height:auto;border:0;border-radius:10px;background:var(--ivory)}
+.cards-app .help-screenshot-hint{display:block;padding:9px 2px 4px;font-size:13px;text-align:center;text-decoration:underline;text-underline-offset:3px}
+.cards-app .help-screenshot figcaption{margin:8px 3px 2px;font-size:14px;line-height:1.65;color:var(--ink)}
+.cards-app .help-screenshot figcaption b{color:#944026}
+.cards-app .help-image-note{font-size:14px;color:var(--muted);line-height:1.6;margin:0 0 20px}
+@media(max-width:420px){.cards-app .help-screenshot{padding:7px;margin-left:-4px;margin-right:-4px}}
